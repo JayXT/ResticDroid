@@ -1,0 +1,10 @@
+First release.
+
+* Backup profiles: paths, excludes, tags, retention.
+* Schedules: manual, every N hours, or daily.
+* Conditions: charging, unmetered, idle, battery, Wi-Fi SSID.
+* Repositories on B2, S3, Azure, GCS, Swift, REST and local folders.
+* Snapshot browsing, file listing, diff, forget, prune, restore.
+* Fingerprint or repository-password confirmation.
+* Plain-text config in /sdcard/ResticDroid, watched for edits.
+* Bundles restic 0.19.1, built from source.

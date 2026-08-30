@@ -1,0 +1,3 @@
+# Extra CA certificates for Dockerfile.debian13, used only behind a
+# TLS-intercepting proxy. Never commit certificates.
+*.crt

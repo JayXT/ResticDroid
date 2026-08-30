@@ -1,0 +1,43 @@
+# Build output
+build/
+.gradle/
+local.properties
+*.apk
+*.aab
+*.idsig
+
+# The bundled restic binaries are BUILT, not committed.
+#
+# F-Droid does not accept prebuilt binaries in a source tree, and the reason is
+# a good one: a binary in git is a binary nobody can check against its source.
+# These are produced by tools/build-restic.sh from the pinned commit in
+# third_party/restic, on your machine and in F-Droid's buildserver alike.
+restic-android/src/main/jniLibs/
+restic-android/src/main/res/raw/restic_version.txt
+
+# Signing material must never enter the repository.
+keystore.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+id_rsa*
+
+# Container build caches - Gradle, Go modules, and (with podman) the image
+# store. All of it is regenerable; delete the directory to reclaim the space.
+.container/
+
+# Patches produced for review; the history is the record, not these.
+*.patch
+
+# Editors
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Kotlin compiler session files
+.kotlin/

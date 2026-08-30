@@ -1,0 +1,64 @@
+ResticDroid backs your phone up with restic, the open-source backup program, to
+storage you control: Backblaze B2, S3-compatible object storage, a REST server,
+or a folder on an SD card. Everything is encrypted and deduplicated on
+the device before it is sent, so the storage provider only ever holds
+ciphertext.
+
+The restic binary is compiled from source as part of the F-Droid build and runs
+as a child process. The snapshots it writes are ordinary restic snapshots: you
+can open them with restic on a desktop, and nothing about them depends on this
+app. If ResticDroid disappears tomorrow, your backups do not become unreadable.
+
+<b>Backup profiles</b>
+
+A profile says what to back up, where to send it, and when. Start from one of
+the ready-made sets — photos and media, documents and downloads, installed apps,
+or all of shared storage — and adjust it.
+
+<b>Conditions for scheduled runs</b>
+
+Only while charging. Only on an unmetered network. Only on Wi-Fi networks you
+name. Only above a battery level you choose. These become system constraints, so
+the phone is not woken up to discover it cannot run.
+
+<b>Repositories</b>
+
+Backblaze B2, S3 and S3-compatible services, Azure Blob Storage, Google Cloud
+Storage, OpenStack Swift, a restic REST server, or a local folder. Create a new
+repository from the app, or point it at one that already exists.
+
+SFTP and rclone are not offered: restic implements those by running the "ssh"
+and "rclone" programs, which Android does not have. Use a REST server or an
+S3-compatible gateway instead.
+
+<b>Security</b>
+
+Repository passwords and API keys live in the Android keystore, hardware-backed
+on devices that have a secure element, and never appear in the configuration
+files. Backups and restores that you start yourself can be gated behind your
+fingerprint, or the repository password. Scheduled runs are not prompted, because a backup
+that waits for a fingerprint at 3am is a backup that does not happen.
+
+<b>Configuration you can read</b>
+
+Everything you configure is plain text in /sdcard/ResticDroid, one file per
+profile, one per repository. Edit it in any text editor, over USB or on the
+phone, and the app picks the change up immediately. There is no database, and
+nothing to import or export.
+
+<b>No recursive backups</b>
+
+A repository stored on the device is excluded from every backup automatically,
+whether or not it is the one being written to. You do not have to remember to
+write that rule yourself.
+
+<b>What it does not do</b>
+
+App data cannot be backed up without root, and ResticDroid does not use root or
+pretend otherwise. It backs up the APKs of apps you installed, so a new phone
+can be rebuilt, but their data stays where it is.
+
+<b>Privacy</b>
+
+No analytics, no crash reporting, no advertising identifiers, no Google Play
+services. The app connects to nothing except the repositories you configure.

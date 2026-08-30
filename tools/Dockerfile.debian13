@@ -1,0 +1,92 @@
+# Reproducible ResticDroid build environment, on Debian 13 (trixie).
+#
+#   docker build -f tools/Dockerfile.debian13 -t resticdroid-build tools/
+#   docker run --rm -v "$PWD":/src -w /src resticdroid-build ./gradlew check assembleRelease
+#
+# Everything that affects the output bytes is pinned here. That is the whole
+# point: the restic binary is byte-for-byte reproducible only if the Go release
+# and the NDK match, and "whatever apt happened to install" does not match
+# anybody else's machine — including F-Droid's buildserver.
+#
+# Debian's own packages are used where the version does not affect output
+# (JDK, git, curl) and bypassed where it does (Go).
+
+FROM debian:13
+
+ARG GO_VERSION=1.26.7
+ARG GO_SHA256=ffb5f8de10c62550dfddab66b36b57030721e0a44a3218e9e1181d7b59f121ca
+ARG ANDROID_CMDLINE_TOOLS=13114758
+ARG ANDROID_PLATFORM=android-37.0
+ARG ANDROID_BUILD_TOOLS=37.0.0
+ARG NDK_VERSION=27.2.12479018
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    ANDROID_HOME=/opt/android-sdk \
+    ANDROID_SDK_ROOT=/opt/android-sdk \
+    ANDROID_NDK_HOME=/opt/android-sdk/ndk/27.2.12479018 \
+    JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+
+# JDK 21 is what AGP 9 wants and what Debian 13 ships, so apt is the right
+# answer here. Debian's golang-go is 1.24 and is deliberately not installed.
+#
+# binutils is not incidental: tools/verify-restic.sh uses readelf to assert the
+# cross-compiled binaries are PIE and linked against bionic, and that check is
+# the one that catches a build which would fail only at runtime, on DNS.
+RUN apt-get update -qq && \
+    apt-get install -y -qq --no-install-recommends \
+        openjdk-21-jdk-headless \
+        git curl ca-certificates unzip xz-utils file make \
+        binutils && \
+    rm -rf /var/lib/apt/lists/*
+
+# Optional: drop any extra CA certificates into tools/certs/ before building.
+# Needed only behind a TLS-intercepting corporate proxy; harmless otherwise.
+COPY cert[s]/ /usr/local/share/ca-certificates/
+RUN update-ca-certificates >/dev/null 2>&1 || true; \
+    for c in /usr/local/share/ca-certificates/*.crt; do \
+        [ -e "$c" ] || continue; \
+        keytool -noprompt -importcert -trustcacerts -alias "$(basename "$c")" \
+            -file "$c" -keystore "$JAVA_HOME/lib/security/cacerts" \
+            -storepass changeit >/dev/null 2>&1 || true; \
+    done
+
+# Upstream Go, pinned and checksummed. Keep in step with .go-version and with
+# the sudo: block in fdroid/io.github.jayxt.resticdroid.yml.
+RUN curl -sSLo /tmp/go.tar.gz "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" && \
+    echo "${GO_SHA256}  /tmp/go.tar.gz" | sha256sum -c - && \
+    tar -C /usr/local -xzf /tmp/go.tar.gz && \
+    rm /tmp/go.tar.gz
+ENV PATH=/usr/local/go/bin:/opt/android-sdk/cmdline-tools/latest/bin:$PATH
+
+# Android SDK. Debian ships an `sdkmanager` package (F-Droid's Python
+# reimplementation) but it does not track the current repository layout, so
+# Google's own command-line tools are used.
+RUN mkdir -p ${ANDROID_HOME}/cmdline-tools && \
+    curl -sSLo /tmp/cli.zip \
+      "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS}_latest.zip" && \
+    unzip -q /tmp/cli.zip -d ${ANDROID_HOME}/cmdline-tools && \
+    mv ${ANDROID_HOME}/cmdline-tools/cmdline-tools ${ANDROID_HOME}/cmdline-tools/latest && \
+    rm /tmp/cli.zip && \
+    yes | sdkmanager --licenses >/dev/null 2>&1 || true && \
+    sdkmanager --install \
+        "platforms;${ANDROID_PLATFORM}" \
+        "build-tools;${ANDROID_BUILD_TOOLS}" \
+        "ndk;${NDK_VERSION}" >/dev/null && \
+    echo "sdk.dir=${ANDROID_HOME}" > /etc/androidsdk.properties
+
+# Caches live at fixed paths so the caller can bind-mount them anywhere -
+# tools/container-build.sh puts them under .container/ in the project, which
+# keeps a build from scattering state through the user's home directory.
+#
+# The Go caches matter more than they look: without them every restic rebuild
+# re-downloads its whole module graph, because the container is discarded after
+# each run.
+ENV GRADLE_USER_HOME=/cache/gradle \
+    GOPATH=/cache/go \
+    GOMODCACHE=/cache/go/pkg/mod \
+    GOCACHE=/cache/go/build \
+    HOME=/cache/home
+
+VOLUME /cache
+WORKDIR /src
+CMD ["./gradlew", "check", "assembleRelease"]

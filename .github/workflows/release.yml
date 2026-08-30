@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to build
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build, sign and publish
+    runs-on: ubuntu-latest
+    # Android identifies an app by its signature, so this key can never be
+    # replaced without stranding every existing install. Keep the keystore, its
+    # password and any base64 copy in three separate places outside the
+    # repository, and never sign with a key generated somewhere you do not
+    # control.
+    #
+    # It lives in an environment rather than in repository secrets so that it is
+    # decrypted only for a run someone approved: Settings -> Environments ->
+    # release -> Required reviewers, then add KEYSTORE_BASE64,
+    # KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD there. Pin this job's
+    # actions to commit SHAs too - a moved tag on an action in a job that holds
+    # a signing key is enough to leak it.
+    environment: release
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: .go-version
+          cache-dependency-path: third_party/restic/go.sum
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: sdkmanager --install "ndk;27.2.12479018"
+
+      - name: Cross-compile restic
+        run: tools/build-restic.sh
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+
+      - name: Verify the binaries
+        run: tools/verify-restic.sh
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Test
+        run: ./gradlew test
+
+      # The signing key is never written to disk in plaintext beyond the
+      # runner's ephemeral workspace, and the workflow has no other secrets.
+      - name: Decode the signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::KEYSTORE_BASE64 is not set. Add the four signing secrets to the 'release' environment."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Build signed APKs
+        env:
+          RESTICDROID_KEYSTORE: ${{ runner.temp }}/release.jks
+          RESTICDROID_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          RESTICDROID_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          RESTICDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      - name: Collect artefacts and checksums
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/*.apk dist/
+          # Rename to something a human can read in a release list.
+          TAG="${GITHUB_REF_NAME:-${{ github.event.inputs.tag }}}"
+          cd dist
+          for f in *.apk; do
+            abi=$(echo "$f" | sed -E 's/^app-(.*)-release.*/\1/')
+            mv "$f" "ResticDroid-${TAG}-${abi}.apk"
+          done
+          sha256sum *.apk > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Record what went into this build
+        run: |
+          {
+            echo "restic: $(git -C third_party/restic describe --tags) ($(git -C third_party/restic rev-parse HEAD))"
+            echo "built with: $(go version)"
+            echo "NDK: 27.2.12479018, minSdk 26"
+          } > dist/BUILD-INFO.txt
+
+      - name: Publish the GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.apk
+            dist/SHA256SUMS
+            dist/BUILD-INFO.txt
+          # A hyphen in the tag means a prerelease - v0.2.0-beta.1 - and GitHub
+          # then keeps it out of "Latest release". Same rule as checkVersion and
+          # as F-Droid's UpdateCheckMode regex, which matches bare tags only.
+          prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
+          generate_release_notes: true
+          body_path: fastlane/RELEASE_NOTES_HEADER.md
+          fail_on_unmatched_files: true
+
+      - name: Remove the keystore
+        if: always()
+        run: shred -u "$RUNNER_TEMP/release.jks" || rm -f "$RUNNER_TEMP/release.jks"

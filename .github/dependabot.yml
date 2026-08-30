@@ -1,0 +1,16 @@
+# Gradle dependencies and Actions only. The versions that matter most - Go, the
+# NDK, restic itself - are pinned in .go-version, tools/Dockerfile.debian13 and
+# the submodule, and are bumped deliberately, because changing any of them
+# changes the output bytes and breaks reproducibility with F-Droid.
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

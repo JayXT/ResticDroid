@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The XML theme exists only to paint the window before Compose takes over.
+      Everything visible after that is Material 3 in Compose, so this stays as
+      small as it can be and pulls in no theming library.
+    -->
+    <style name="Theme.ResticDroid" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

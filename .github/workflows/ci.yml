@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  ANDROID_API: "26"
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          # One pinned Go release, shared with the F-Droid metadata, so a CI
+          # build and an F-Droid build produce the same bytes.
+          go-version-file: .go-version
+          cache-dependency-path: third_party/restic/go.sum
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: sdkmanager --install "ndk;27.2.12479018"
+
+      - name: Identify the pinned restic
+        id: restic
+        run: echo "commit=$(git -C third_party/restic rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the restic build
+        id: restic-cache
+        uses: actions/cache@v4
+        with:
+          # Both outputs of build-restic.sh, or a cache hit would skip the build
+          # and leave R.raw.restic_version with nothing to resolve to.
+          path: |
+            restic-android/src/main/jniLibs
+            restic-android/src/main/res/raw/restic_version.txt
+          # Keyed on the exact restic commit and the script that builds it, so
+          # a bump to either invalidates the cache and nothing else does.
+          key: restic-${{ steps.restic.outputs.commit }}-${{ hashFiles('tools/build-restic.sh') }}-${{ hashFiles('.go-version') }}
+
+      - name: Cross-compile restic
+        if: steps.restic-cache.outputs.cache-hit != 'true'
+        run: tools/build-restic.sh
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+
+      - name: Verify the binaries are what we think they are
+        run: tools/verify-restic.sh
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests
+        run: ./gradlew test --stacktrace
+
+      - name: Lint
+        run: ./gradlew lint
+
+      - name: Assemble release APKs
+        run: ./gradlew assembleRelease
+
+      - name: Check for trackers and proprietary dependencies
+        run: ./gradlew :app:auditDependencies
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apks
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: reports
+          path: |
+            **/build/reports/
+          retention-days: 7
