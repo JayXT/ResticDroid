@@ -16,7 +16,7 @@ androidxAppCompat = "1.8.0"
 composeBom = "2026.08.00"
 
 junit = "4.13.2"
-json = "20250517"
+json = "20260814"
 robolectric = "4.16"
 androidxTestCore = "1.7.0"
 
