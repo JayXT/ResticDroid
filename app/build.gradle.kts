@@ -56,6 +56,13 @@ android {
                 storePassword = password
                 keyAlias = value("keyAlias", "RESTICDROID_KEY_ALIAS")
                 keyPassword = value("keyPassword", "RESTICDROID_KEY_PASSWORD") ?: password
+
+                // AGP leaves v3 off unless asked. v2 alone verifies fine, but
+                // v3 is what carries a signing-certificate lineage, and that
+                // lineage is the only mechanism by which this key could ever
+                // be rotated. It costs nothing to have and cannot be added to
+                // installs that already exist.
+                enableV3Signing = true
             }
         }
     }
