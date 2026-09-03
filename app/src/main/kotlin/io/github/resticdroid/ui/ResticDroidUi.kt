@@ -34,6 +34,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.resticdroid.ui.components.BusyOverlay
 import io.github.resticdroid.ui.components.EmptyState
 import io.github.resticdroid.ui.components.PasswordDialog
 import io.github.resticdroid.ui.screens.DestinationEditorScreen
@@ -56,6 +57,7 @@ fun ResticDroidUi(activity: FragmentActivity, scope: CoroutineScope) {
     val granted by model.storageGranted.collectAsStateWithLifecycle()
     val message by model.message.collectAsStateWithLifecycle()
     val challenge by model.challenge.collectAsStateWithLifecycle()
+    val busy by model.busy.collectAsStateWithLifecycle()
 
     val lifecycleOwner = LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
@@ -97,63 +99,70 @@ fun ResticDroidUi(activity: FragmentActivity, scope: CoroutineScope) {
             return@Surface
         }
 
-        Scaffold(
-            snackbarHost = { SnackbarHost(snackbar) },
-            bottomBar = {
-                if (navigator.current.isRoot()) {
-                    NavigationBar {
-                        NavigationBarItem(
-                            selected = navigator.current is Screen.Profiles,
-                            onClick = { navigator.select(Screen.Profiles) },
-                            icon = { Icon(Glyphs.Backup, contentDescription = null) },
-                            label = { Text("Profiles") },
-                        )
-                        NavigationBarItem(
-                            selected = navigator.current is Screen.Destinations,
-                            onClick = { navigator.select(Screen.Destinations) },
-                            icon = { Icon(Glyphs.Repository, contentDescription = null) },
-                            label = { Text("Repositories") },
-                        )
-                        NavigationBarItem(
-                            selected = navigator.current is Screen.Settings,
-                            onClick = { navigator.select(Screen.Settings) },
-                            icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                            label = { Text("Settings") },
-                        )
+        Box(Modifier.fillMaxSize()) {
+            Scaffold(
+                snackbarHost = { SnackbarHost(snackbar) },
+                bottomBar = {
+                    if (navigator.current.isRoot()) {
+                        NavigationBar {
+                            NavigationBarItem(
+                                selected = navigator.current is Screen.Profiles,
+                                onClick = { navigator.select(Screen.Profiles) },
+                                icon = { Icon(Glyphs.Backup, contentDescription = null) },
+                                label = { Text("Profiles") },
+                            )
+                            NavigationBarItem(
+                                selected = navigator.current is Screen.Destinations,
+                                onClick = { navigator.select(Screen.Destinations) },
+                                icon = { Icon(Glyphs.Repository, contentDescription = null) },
+                                label = { Text("Repositories") },
+                            )
+                            NavigationBarItem(
+                                selected = navigator.current is Screen.Settings,
+                                onClick = { navigator.select(Screen.Settings) },
+                                icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                                label = { Text("Settings") },
+                            )
+                        }
+                    }
+                },
+            ) { insets ->
+                Box(Modifier.padding(insets)) {
+                    when (val screen = navigator.current) {
+                        is Screen.Profiles ->
+                            ProfilesScreen(model, navigator, activity, scope)
+
+                        is Screen.Destinations ->
+                            DestinationsScreen(model, navigator, activity, scope)
+
+                        is Screen.Settings ->
+                            SettingsScreen(model, navigator, activity, scope)
+
+                        is Screen.EditProfile ->
+                            ProfileEditorScreen(model, navigator, screen.profileId)
+
+                        is Screen.EditDestination ->
+                            DestinationEditorScreen(model, navigator, screen.destinationId, activity, scope)
+
+                        is Screen.Snapshots ->
+                            SnapshotsScreen(model, navigator, screen.destinationId, activity, scope)
+
+                        is Screen.Snapshot ->
+                            SnapshotScreen(model, navigator, screen.destinationId, screen.snapshotId, activity, scope)
+
+                        is Screen.Diff ->
+                            DiffScreen(model, navigator, screen.destinationId, screen.from, screen.to)
+
+                        is Screen.Log ->
+                            LogScreen(navigator, screen.path)
                     }
                 }
-            },
-        ) { insets ->
-            Box(Modifier.padding(insets)) {
-                when (val screen = navigator.current) {
-                    is Screen.Profiles ->
-                        ProfilesScreen(model, navigator, activity, scope)
-
-                    is Screen.Destinations ->
-                        DestinationsScreen(model, navigator, activity, scope)
-
-                    is Screen.Settings ->
-                        SettingsScreen(model, navigator, activity, scope)
-
-                    is Screen.EditProfile ->
-                        ProfileEditorScreen(model, navigator, screen.profileId)
-
-                    is Screen.EditDestination ->
-                        DestinationEditorScreen(model, navigator, screen.destinationId, activity, scope)
-
-                    is Screen.Snapshots ->
-                        SnapshotsScreen(model, navigator, screen.destinationId, activity, scope)
-
-                    is Screen.Snapshot ->
-                        SnapshotScreen(model, navigator, screen.destinationId, screen.snapshotId, activity, scope)
-
-                    is Screen.Diff ->
-                        DiffScreen(model, navigator, screen.destinationId, screen.from, screen.to)
-
-                    is Screen.Log ->
-                        LogScreen(navigator, screen.path)
-                }
             }
+
+            // Outside the Scaffold: it covers the navigation bar too, so
+            // there is nothing left to press while the repository is being
+            // waited on.
+            busy?.let { BusyOverlay(it) }
         }
     }
 }

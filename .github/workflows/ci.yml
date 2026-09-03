@@ -32,7 +32,7 @@ jobs:
           java-version: "21"
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           # One pinned Go release, shared with the F-Droid metadata, so a CI
           # build and an F-Droid build produce the same bytes.
