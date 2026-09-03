@@ -58,9 +58,12 @@ check x86_64      X86-64
 # be the one the pinned restic carries. A tracked file cannot go missing at
 # build time; it can go stale, and this is where that is caught.
 LICENCE="$ROOT/restic-android/src/main/res/raw/restic_license.txt"
-if ! cmp -s "$LICENCE" "$ROOT/third_party/restic/LICENSE"; then
+UPSTREAM="$ROOT/third_party/restic/LICENSE"
+if [ ! -f "$UPSTREAM" ]; then
+    echo "skipped  licence check: third_party/restic is not checked out"
+elif ! cmp -s "$LICENCE" "$UPSTREAM"; then
     echo "BAD      restic_license.txt differs from third_party/restic/LICENSE"
-    echo "         cp third_party/restic/LICENSE $LICENCE"
+    echo "         cp $UPSTREAM $LICENCE"
     status=1
 else
     echo "ok       licence matches the pinned restic"
