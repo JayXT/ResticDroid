@@ -26,6 +26,14 @@ F-Droid builds from source and signs with its own key, so an F-Droid install
 and a GitHub install cannot upgrade one another. Switching means uninstalling,
 which deletes the stored repository passwords.
 
+## Screenshots
+
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1-backup-profiles.png" alt="Backup profiles" width="30%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3-repository-snapshots.png" alt="Snapshots in a repository" width="30%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2-profile-configuration.png" alt="Configuring a profile" width="30%">
+</p>
+
 ## Features
 
 - **Profiles** — what to back up, where, and when. Four ready-made starting

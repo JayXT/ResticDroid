@@ -14,7 +14,7 @@ object Repositories {
     ): Result<ResticRepository> =
         when (val secret = secrets.read(SecretStore.passwordAlias(destination.id))) {
             is SecretStore.Secret.Value ->
-                Result.success(build(destination, secret.value, secrets, credentialDir))
+                runCatching { build(destination, secret.value, secrets, credentialDir) }
 
             SecretStore.Secret.Missing -> Result.failure(
                 IllegalStateException("no password stored for '${destination.name}'")
@@ -74,10 +74,30 @@ object Repositories {
         var user: String? = null
         var secret: String? = null
 
+        // A credential that cannot be read is reported, never skipped. Handing
+        // restic a backend with no account key does not fail as "no account
+        // key": it fails as the storage provider's own 401, which sends the
+        // user to their B2 account looking for a fault that is on this device.
         destination.backend.credentials.forEach { field ->
-            val value = overrides[field.key]
-                ?: secrets.get(SecretStore.credentialAlias(destination.id, field.key))
-            if (value.isNullOrEmpty()) return@forEach
+            val value = overrides[field.key]?.takeIf { it.isNotEmpty() }
+                ?: when (val stored = secrets.read(SecretStore.credentialAlias(destination.id, field.key))) {
+                    is SecretStore.Secret.Value -> stored.value
+                    SecretStore.Secret.Missing -> null
+                    is SecretStore.Secret.Unreadable -> throw IllegalStateException(
+                        "The stored ${field.label} for '${destination.name}' could not be " +
+                            "decrypted (${stored.reason}). Open the repository and enter it again."
+                    )
+                }
+
+            if (value.isNullOrEmpty()) {
+                if (!field.optional) {
+                    throw IllegalStateException(
+                        "No ${field.label} is stored for '${destination.name}'. " +
+                            "Open the repository and enter it again."
+                    )
+                }
+                return@forEach
+            }
 
             when (field.delivery) {
                 Delivery.Environment -> env[field.key] = value
