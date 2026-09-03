@@ -200,7 +200,9 @@ fun SnapshotScreen(
                         destinationId,
                     )
                     if (!ok) return@launch
-                    model.forgetSnapshot(destinationId, snapshotId)
+                    model.working("Forgetting snapshot…") {
+                        model.forgetSnapshot(destinationId, snapshotId)
+                    }
                         .onSuccess { model.say(it); navigator.back() }
                         .onFailure { model.say(it.message) }
                 }

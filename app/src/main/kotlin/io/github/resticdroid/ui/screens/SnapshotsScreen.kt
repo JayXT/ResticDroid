@@ -162,8 +162,9 @@ fun SnapshotsScreen(
                         model.say("Cancelled")
                         return@launch
                     }
-                    model.say("Restoring…")
-                    model.restore(destinationId, snapshot.id, target)
+                    model.working("Restoring…") {
+                        model.restore(destinationId, snapshot.id, target)
+                    }
                         .onSuccess { model.say(it) }
                         .onFailure { model.say(it.message ?: "Restore failed") }
                 }

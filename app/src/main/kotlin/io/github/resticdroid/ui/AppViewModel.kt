@@ -56,6 +56,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
 
+    private val _busy = MutableStateFlow<String?>(null)
+    val busy: StateFlow<String?> = _busy.asStateFlow()
+
     private val _storageGranted = MutableStateFlow(hasStorageAccess(application))
     val storageGranted: StateFlow<Boolean> = _storageGranted.asStateFlow()
 
@@ -71,6 +74,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun say(text: String?) {
         _message.value = text
+    }
+
+    /**
+     * Runs [block] while the whole app says [label].
+     *
+     * Forgetting a snapshot or restoring one is a round trip to the repository:
+     * seconds on a good connection, minutes on a bad one. Without this the
+     * screen simply sits there, and the natural response is to press again.
+     */
+    suspend fun <T> working(label: String, block: suspend () -> T): T = try {
+        _busy.value = label
+        block()
+    } finally {
+        _busy.value = null
     }
 
     /**

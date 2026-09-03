@@ -99,10 +99,19 @@ fun DestinationEditorScreen(
     var confirmDelete by remember(destinationId) { mutableStateOf(false) }
 
     val credentials = remember { mutableStateMapOf<String, String>() }
+
+    // Prefill from the keystore, but never over something already typed. The
+    // configuration is loaded from disk asynchronously, so opening a saved
+    // repository composes once with existing == null and again a moment later
+    // with it set - and clearing the map on that second pass used to wipe
+    // whatever had been entered in between.
     LaunchedEffect(existing?.id, backend) {
-        credentials.clear()
+        credentials.keys.retainAll(backend.credentials.map { it.key }.toSet())
         backend.credentials.forEach { field ->
-            credentials[field.key] = existing?.let { model.credential(it.id, field.key) }.orEmpty()
+            if (!credentials[field.key].isNullOrEmpty()) return@forEach
+            existing?.let { model.credential(it.id, field.key) }
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { credentials[field.key] = it }
         }
     }
 
