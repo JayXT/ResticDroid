@@ -18,7 +18,6 @@ SourceCode: https://github.com/JayXT/ResticDroid
 IssueTracker: https://github.com/JayXT/ResticDroid/issues
 Changelog: https://github.com/JayXT/ResticDroid/releases
 
-AutoName: ResticDroid
 Summary: Scheduled, encrypted backups with restic
 
 Description: |-
