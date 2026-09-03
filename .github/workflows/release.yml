@@ -30,7 +30,7 @@ jobs:
     # a signing key is enough to leak it.
     environment: release
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           ref: ${{ github.event.inputs.tag || github.ref }}
