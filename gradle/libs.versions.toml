@@ -17,7 +17,7 @@ composeBom = "2026.08.00"
 
 junit = "4.13.2"
 json = "20250517"
-robolectric = "4.16"
+robolectric = "4.16.1"
 androidxTestCore = "1.7.0"
 
 [libraries]
