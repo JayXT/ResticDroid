@@ -10,6 +10,7 @@ import androidx.work.WorkerParameters
 import io.github.resticdroid.R
 import io.github.resticdroid.config.ConfigPaths
 import io.github.resticdroid.config.ConfigStore
+import io.github.resticdroid.engine.ProviderError
 import io.github.resticdroid.engine.Repositories
 import io.github.resticdroid.restic.Restic
 import io.github.resticdroid.restic.ResticCommand
@@ -73,7 +74,7 @@ class PruneWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             Notifications.result(applicationContext, destination.name, "Prune finished", failed = false)
             Result.success()
         } else {
-            val message = result.humanError()
+            val message = ProviderError.explain(destination, result.humanError())
             log.line("failed: $message")
             Notifications.result(applicationContext, destination.name, message, failed = true)
             Result.failure()

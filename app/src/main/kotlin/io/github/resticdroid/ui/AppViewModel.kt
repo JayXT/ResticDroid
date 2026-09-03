@@ -13,6 +13,7 @@ import io.github.resticdroid.config.ConfigPaths
 import io.github.resticdroid.config.Destination
 import io.github.resticdroid.config.Profile
 import io.github.resticdroid.config.Settings
+import io.github.resticdroid.engine.ProviderError
 import io.github.resticdroid.engine.Repositories
 import io.github.resticdroid.engine.RestoreReport
 import io.github.resticdroid.restic.ResticCommand
@@ -273,7 +274,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 result.isSuccess -> "Repository opened."
                 result.exitCode == ResticExit.REPOSITORY_NOT_FOUND ->
                     error("No repository at that location yet. Use \"Create repository\" instead.")
-                else -> error(result.humanError())
+                else -> error(ProviderError.explain(destination, result.humanError()))
             }
         }
     }
@@ -296,7 +297,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (result.isSuccess) {
                 "Repository created."
             } else {
-                error(result.humanError())
+                error(ProviderError.explain(destination, result.humanError()))
             }
         }
     }
@@ -311,8 +312,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 app.restic.executeJson(repository(destinationId), ResticCommand.snapshots())
                     .map(ResticSnapshot::from)
                     .sortedByDescending { it.time }
-            }.onSuccess { listings[destinationId] = it }
+            }.explained(destinationId).onSuccess { listings[destinationId] = it }
         }
+    }
+
+    /**
+     * restic's own message, unless the storage provider refused the credentials.
+     *
+     * Applied to the result rather than to each error(): every repository call
+     * below can fail this way, and they should all say the same thing when it
+     * happens.
+     */
+    private fun <T> Result<T>.explained(destinationId: String): Result<T> = recoverCatching { cause ->
+        val destination = config.value.destination(destinationId) ?: throw cause
+        val message = cause.message.orEmpty()
+        val better = ProviderError.explain(destination, message)
+        if (better == message) throw cause
+        throw IllegalStateException(better, cause)
     }
 
     /** Anything that changes what a listing would say drops the cached one. */
@@ -374,7 +390,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 error(problem ?: ResticExit.describe(code))
             }
             FileListing(out, truncated).also { lastFiles = snapshotId to it }
-        }
+        }.explained(destinationId)
     }
 
     suspend fun forgetSnapshot(destinationId: String, snapshotId: String): Result<String> =
@@ -384,7 +400,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (!result.isSuccess) error(result.humanError())
                 stale(destinationId)
                 "Snapshot forgotten. Prune the repository to reclaim the space."
-            }
+            }.explained(destinationId)
         }
 
     suspend fun diff(destinationId: String, from: String, to: String): Result<String> =
@@ -399,7 +415,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     lines.take(DIFF_LINE_LIMIT).joinToString("\n") +
                         "\n\n… and ${lines.size - DIFF_LINE_LIMIT} more lines."
                 }
-            }
+            }.explained(destinationId)
         }
 
     suspend fun pruneNow(activity: FragmentActivity, destinationId: String) {
@@ -439,7 +455,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
                 else -> error(result.humanError())
             }
-        }
+        }.explained(destinationId)
     }
 
     fun originalLocationTarget(): String = "/"

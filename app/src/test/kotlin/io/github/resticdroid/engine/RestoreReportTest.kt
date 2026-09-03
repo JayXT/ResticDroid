@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
 
 class RestoreReportTest {
     private fun error(item: String, message: String) = ResticItemError(item, message)
@@ -49,5 +50,51 @@ class RestoreReportTest {
         val problems = (1..5).map { error("/sdcard/$it", "open /sdcard/$it: permission denied") }
         assertTrue(RestoreReport.summarise("/", problems).startsWith("Restored in place, but 5 items"))
         assertTrue(RestoreReport.summarise("/", problems).endsWith(" …"))
+    }
+}
+
+@RunWith(org.robolectric.RobolectricTestRunner::class)
+class ProviderErrorTest {
+    private fun destination(backend: io.github.resticdroid.restic.ResticBackend) =
+        io.github.resticdroid.config.Destination(
+            id = "d", name = "TestBucket", backend = backend, location = "bucket:path",
+        )
+
+    @Test
+    fun `every backend that authenticates explains a refusal the same way`() {
+        val authenticating = io.github.resticdroid.restic.ResticBackend.entries
+            .filter { it.credentials.isNotEmpty() }
+        assertTrue("expected more than one authenticating backend", authenticating.size > 1)
+
+        authenticating.forEach { backend ->
+            val said = ProviderError.explain(
+                destination(backend),
+                "unable to open repository at b2:bucket: b2.NewClient: b2_authorize_account: 401: ",
+            )
+            assertEquals(
+                "${backend.displayName} rejected the account credentials for 'TestBucket'.",
+                said,
+            )
+        }
+    }
+
+    @Test
+    fun `a local folder has no credentials to refuse, so restic keeps the word`() {
+        val message = "Fatal: unable to open config file: 401 whatever"
+        assertEquals(
+            message,
+            ProviderError.explain(destination(io.github.resticdroid.restic.ResticBackend.LOCAL), message),
+        )
+    }
+
+    @Test
+    fun `anything that is not a refusal is passed through untouched`() {
+        val d = destination(io.github.resticdroid.restic.ResticBackend.B2)
+        listOf(
+            "Fatal: wrong password or no key found",
+            "repository does not exist",
+            "read /storage/emulated/0/DCIM/4013.jpg: permission denied",
+            "uploaded 14015 packs",
+        ).forEach { assertEquals(it, ProviderError.explain(d, it)) }
     }
 }

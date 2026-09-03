@@ -190,8 +190,11 @@ class BackupEngine(
                     } else {
                         emit(
                             RunEvent.Failed(
-                                lastDiagnostic?.takeIf { it.isNotBlank() }
-                                    ?: ResticExit.describe(event.exitCode)
+                                ProviderError.explain(
+                                    destination,
+                                    lastDiagnostic?.takeIf { it.isNotBlank() }
+                                        ?: ResticExit.describe(event.exitCode),
+                                )
                             )
                         )
                     }
