@@ -181,7 +181,10 @@ class RestCredentialFoldingTest {
             backend = io.github.resticdroid.restic.ResticBackend.B2,
             location = "bucket:path",
         )
-        val repo = io.github.resticdroid.engine.Repositories.openWith(b2, "p", secrets(), credentials.root)
+        val repo = io.github.resticdroid.engine.Repositories.openWith(
+            b2, "p", secrets(), credentials.root,
+            overrides = mapOf("B2_ACCOUNT_ID" to "id", "B2_ACCOUNT_KEY" to "key"),
+        )
         org.junit.Assert.assertEquals("b2:bucket:path", repo.uri)
     }
 }
@@ -236,11 +239,52 @@ class CredentialDeliveryTest {
         repeat(3) { n ->
             io.github.resticdroid.engine.Repositories.openWith(
                 d, "pw", secrets(), dir.root,
-                overrides = mapOf("GOOGLE_APPLICATION_CREDENTIALS" to """{"run":$n}"""),
+                overrides = mapOf(
+                    "GOOGLE_PROJECT_ID" to "proj",
+                    "GOOGLE_APPLICATION_CREDENTIALS" to """{"run":$n}""",
+                ),
             )
         }
         org.junit.Assert.assertEquals(1, dir.root.listFiles()!!.size)
         org.junit.Assert.assertEquals("""{"run":2}""", dir.root.listFiles()!!.single().readText())
+    }
+
+    @org.junit.Test
+    fun `a missing credential is named, not silently dropped`() {
+        val error = runCatching {
+            io.github.resticdroid.engine.Repositories.openWith(
+                destination(io.github.resticdroid.restic.ResticBackend.B2, "bucket:path"),
+                "pw", secrets(), dir.root,
+                overrides = mapOf("B2_ACCOUNT_ID" to "id"),
+            )
+        }.exceptionOrNull()
+
+        // Without this the backend is handed no account key and fails as
+        // Backblaze's own 401, which looks like a problem with the account.
+        org.junit.Assert.assertTrue(error is IllegalStateException)
+        org.junit.Assert.assertTrue(
+            "expected the field's label, got: " + error!!.message,
+            error.message!!.contains("Application key"),
+        )
+    }
+
+    @org.junit.Test
+    fun `an empty override falls back to the stored credential`() {
+        // The JVM has no AndroidKeyStore, so this store takes its key directly.
+        val key = javax.crypto.KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
+        val store = io.github.resticdroid.secret.SecretStore(
+            androidx.test.core.app.ApplicationProvider.getApplicationContext()
+        ) { key }
+        store.put(
+            io.github.resticdroid.secret.SecretStore.credentialAlias("b2", "B2_ACCOUNT_KEY"),
+            "stored-key",
+        )
+        val repo = io.github.resticdroid.engine.Repositories.openWith(
+            destination(io.github.resticdroid.restic.ResticBackend.B2, "bucket:path"),
+            "pw", store, dir.root,
+            overrides = mapOf("B2_ACCOUNT_ID" to "id", "B2_ACCOUNT_KEY" to ""),
+        )
+        org.junit.Assert.assertEquals("stored-key", repo.env["B2_ACCOUNT_KEY"])
     }
 
     @org.junit.Test
