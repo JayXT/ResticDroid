@@ -45,7 +45,7 @@ jobs:
           go-version-file: .go-version
           cache-dependency-path: third_party/restic/go.sum
 
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
 
       - name: Install NDK
         run: sdkmanager --install "ndk;27.2.12479018"
