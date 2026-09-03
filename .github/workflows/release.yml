@@ -40,7 +40,7 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: .go-version
           cache-dependency-path: third_party/restic/go.sum
