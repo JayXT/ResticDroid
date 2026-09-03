@@ -29,11 +29,14 @@ jobs:
     # actions to commit SHAs too - a moved tag on an action in a job that holds
     # a signing key is enough to leak it.
     environment: release
+    # The tag being released, however the workflow was started.
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v7
         with:
           submodules: recursive
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ env.TAG }}
 
       - uses: actions/setup-java@v6
         with:
@@ -60,8 +63,13 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Test
-        run: ./gradlew test
+      - name: Check
+        run: ./gradlew check
+
+      # Before the keystore is decrypted: a release that is going to be wrong
+      # should be wrong while the signing key is still encrypted.
+      - name: Release checklist
+        run: tools/check-release.sh "$TAG"
 
       # The signing key is never written to disk in plaintext beyond the
       # runner's ephemeral workspace, and the workflow has no other secrets.
@@ -83,12 +91,34 @@ jobs:
           RESTICDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
+      # Android identifies an app by its signing certificate, so publishing
+      # under the wrong one strands every existing install. RELEASE_CERT_SHA256
+      # is a repository variable, not a secret: it is public by definition.
+      - name: Check the APKs carry the expected signing key
+        run: |
+          expected="${{ vars.RELEASE_CERT_SHA256 }}"
+          if [ -z "$expected" ]; then
+            echo "::error::Set the RELEASE_CERT_SHA256 repository variable to the release certificate's SHA-256 (keytool -list -v)."
+            exit 1
+          fi
+          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
+          set -- app/build/outputs/apk/release/*.apk
+          [ -f "$1" ] || { echo "::error::no release APKs to check"; exit 1; }
+          for apk in "$@"; do
+            got=$("$apksigner" verify --print-certs "$apk" |
+              sed -n 's/.*certificate SHA-256 digest: *//p' | sort -u)
+            if [ "$got" != "$expected" ]; then
+              echo "::error::$apk is signed by '$got', expected '$expected'"
+              exit 1
+            fi
+            echo "ok $(basename "$apk")"
+          done
+
       - name: Collect artefacts and checksums
         run: |
           mkdir -p dist
           cp app/build/outputs/apk/release/*.apk dist/
           # Rename to something a human can read in a release list.
-          TAG="${GITHUB_REF_NAME:-${{ github.event.inputs.tag }}}"
           cd dist
           for f in *.apk; do
             abi=$(echo "$f" | sed -E 's/^app-(.*)-release.*/\1/')

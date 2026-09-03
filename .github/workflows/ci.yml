@@ -72,17 +72,17 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Unit tests
-        run: ./gradlew test --stacktrace
+      # One task: check pulls in the unit tests, lint, :app:checkVersion and
+      # :app:auditDependencies. Adding a verification task to check is enough
+      # to have CI run it.
+      - name: Check
+        run: ./gradlew check --stacktrace
 
-      - name: Lint
-        run: ./gradlew lint
+      - name: Release checklist
+        run: tools/check-release.sh
 
       - name: Assemble release APKs
         run: ./gradlew assembleRelease
-
-      - name: Check for trackers and proprietary dependencies
-        run: ./gradlew :app:auditDependencies
 
       - uses: actions/upload-artifact@v7
         with:
