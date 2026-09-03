@@ -61,7 +61,7 @@ jobs:
       - name: Verify the binaries
         run: tools/verify-restic.sh
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Check
         run: ./gradlew check
@@ -136,7 +136,7 @@ jobs:
           } > dist/BUILD-INFO.txt
 
       - name: Publish the GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/*.apk
