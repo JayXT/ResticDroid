@@ -56,9 +56,9 @@ RepoType: git
 Repo: https://github.com/JayXT/ResticDroid.git
 
 Builds:
-  - versionName: 0.1.0
-    versionCode: 1001
-    commit: v0.1.0
+  - versionName: 0.2.0
+    versionCode: 2001
+    commit: v0.2.0
     subdir: app
     submodules: true
     sudo:
@@ -86,9 +86,9 @@ Builds:
       - third_party/restic
     output: build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
 
-  - versionName: 0.1.0
-    versionCode: 1002
-    commit: v0.1.0
+  - versionName: 0.2.0
+    versionCode: 2002
+    commit: v0.2.0
     subdir: app
     submodules: true
     sudo:
@@ -110,9 +110,9 @@ Builds:
       - third_party/restic
     output: build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
 
-  - versionName: 0.1.0
-    versionCode: 1004
-    commit: v0.1.0
+  - versionName: 0.2.0
+    versionCode: 2004
+    commit: v0.2.0
     subdir: app
     submodules: true
     sudo:
@@ -150,5 +150,5 @@ UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
 UpdateCheckName: Ignore
 AutoUpdateMode: Version v%v
 
-CurrentVersion: 0.1.0
-CurrentVersionCode: 1004
+CurrentVersion: 0.2.0
+CurrentVersionCode: 2004

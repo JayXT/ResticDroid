@@ -1,0 +1,8 @@
+* Cancelling the fingerprint prompt no longer counts as confirmation.
+* A stored credential that cannot be read is reported as such, rather
+  than surfacing later as the storage provider's own error.
+* The provider is named when it rejects the account credentials, so it
+  is clear which secret is wrong.
+* Progress is shown while forgetting, restoring or comparing.
+* Credentials are no longer lost when the repository editor opens before
+  the configuration has finished loading.
