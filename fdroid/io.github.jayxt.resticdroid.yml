@@ -28,6 +28,8 @@ Builds:
     gradle:
       - yes
     output: build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
+    binary: 
+      https://github.com/JayXT/ResticDroid/releases/download/v%v/ResticDroid-v%v-armeabi-v7a.apk
     prebuild:
       - export PATH=/opt/go/bin:$PATH
       - export ANDROID_NDK_HOME=$$NDK$$
@@ -53,6 +55,8 @@ Builds:
     gradle:
       - yes
     output: build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
+    binary: 
+      https://github.com/JayXT/ResticDroid/releases/download/v%v/ResticDroid-v%v-arm64-v8a.apk
     prebuild:
       - export PATH=/opt/go/bin:$PATH
       - export ANDROID_NDK_HOME=$$NDK$$
@@ -78,6 +82,8 @@ Builds:
     gradle:
       - yes
     output: build/outputs/apk/release/app-x86_64-release-unsigned.apk
+    binary: 
+      https://github.com/JayXT/ResticDroid/releases/download/v%v/ResticDroid-v%v-x86_64.apk
     prebuild:
       - export PATH=/opt/go/bin:$PATH
       - export ANDROID_NDK_HOME=$$NDK$$
@@ -86,6 +92,9 @@ Builds:
       - restic-android/src/main/jniLibs
       - third_party/restic
     ndk: 27.2.12479018
+
+AllowedAPKSigningKeys: 
+  2d96df69cc3102fb27a3838f1c44dee7bb3412b19e4252908f79e9e4612099e4
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
