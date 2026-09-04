@@ -119,7 +119,7 @@ Builds:
       - third_party/restic
     ndk: 27.2.12479018
 
-AutoUpdateMode: Version v%v
+AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
 VercodeOperation:
   - '%c * 10 + 1'
