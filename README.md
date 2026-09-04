@@ -2,7 +2,7 @@
 
 Scheduled, encrypted backups for Android, built on [restic](https://restic.net).
 
-*Initially developed with Claude.*
+*Developed with Claude.*
 
 restic has no Android port. ResticDroid cross-compiles restic, ships it inside
 the app, and drives it as a child process. Snapshots it writes are ordinary
