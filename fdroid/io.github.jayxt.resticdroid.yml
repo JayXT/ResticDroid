@@ -8,45 +8,13 @@ SourceCode: https://github.com/JayXT/ResticDroid
 IssueTracker: https://github.com/JayXT/ResticDroid/issues
 Changelog: https://github.com/JayXT/ResticDroid/releases
 
-Description: |-
-  ResticDroid backs your phone up with restic, the open-source backup program,
-  to storage you control: Backblaze B2, S3-compatible object storage, a REST
-  server, or a folder on an SD card. Everything is encrypted and
-  deduplicated on the device before it is sent, so the storage provider only
-  ever holds ciphertext.
-
-  The restic binary is compiled from source as part of this build, from the
-  pinned upstream commit in third_party/restic, and runs as a child process.
-  Snapshots it writes are ordinary restic snapshots: you can open them with
-  restic on a desktop, and nothing about them depends on this app.
-
-  * Backup profiles: what to back up, where to send it, and when.
-  * Conditions for scheduled runs: only while charging, only on an unmetered
-  network, only on named Wi-Fi networks, only above a battery level.
-  * Repositories on Backblaze B2, S3, Azure, Google Cloud Storage, Swift,
-  a REST server, or a local folder.
-  * Fingerprint, or the repository password, before backups and restores that
-  you start yourself. Scheduled runs are never prompted.
-  * Local repositories are excluded from every backup automatically, so a
-  backup can never copy itself.
-  * The configuration is plain text under /storage/emulated/0/ResticDroid,
-  one file per profile. Edit it in any text editor and the app follows
-  along. There is nothing to import or export.
-
-  Passwords and API keys are held in the Android keystore, hardware-backed
-  where the device supports it, and never appear in the configuration files.
-
-  No analytics, no crash reporting, no advertising identifiers, and no
-  dependency on Google Play services. The app connects to nothing except the
-  repositories you configure.
-
 RepoType: git
 Repo: https://github.com/JayXT/ResticDroid.git
 
 Builds:
-  - versionName: 0.2.0
-    versionCode: 2001
-    commit: v0.2.0
+  - versionName: 0.2.1
+    versionCode: 2011
+    commit: v0.2.1
     subdir: app
     submodules: true
     sudo:
@@ -69,9 +37,9 @@ Builds:
       - third_party/restic
     ndk: 27.2.12479018
 
-  - versionName: 0.2.0
-    versionCode: 2002
-    commit: v0.2.0
+  - versionName: 0.2.1
+    versionCode: 2012
+    commit: v0.2.1
     subdir: app
     submodules: true
     sudo:
@@ -94,9 +62,9 @@ Builds:
       - third_party/restic
     ndk: 27.2.12479018
 
-  - versionName: 0.2.0
-    versionCode: 2004
-    commit: v0.2.0
+  - versionName: 0.2.1
+    versionCode: 2014
+    commit: v0.2.1
     subdir: app
     submodules: true
     sudo:
@@ -126,5 +94,5 @@ VercodeOperation:
   - '%c * 10 + 2'
   - '%c * 10 + 4'
 UpdateCheckName: Ignore
-CurrentVersion: 0.2.0
-CurrentVersionCode: 2004
+CurrentVersion: 0.2.1
+CurrentVersionCode: 2014

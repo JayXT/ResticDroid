@@ -1,0 +1,4 @@
+* No user-visible changes.
+* Fixes the F-Droid build: F-Droid removes the signing configuration
+  before compiling, and the build file still referred to what it had
+  removed.
