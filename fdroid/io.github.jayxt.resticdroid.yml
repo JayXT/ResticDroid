@@ -18,18 +18,20 @@ Builds:
     subdir: app
     submodules: true
     sudo:
-      - echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.d/forky.list
-      - apt-get update
-      - apt-get install -y -t forky golang-1.26-go=1.26.7-1
-      - rm -f /etc/apt/sources.list.d/forky.list
-      - apt-get update
-      - ln -sf /usr/lib/go-1.26/bin/go /usr/local/bin/go
+      - install -d /opt/go
+      - curl -sSLo /tmp/go.tar.gz https://go.dev/dl/go1.26.7.linux-amd64.tar.gz
+      - GO_SHA=ffb5f8de10c62550dfddab66b36b57030721e0a44a3218e9e1181d7b59f121ca
+      - echo "$GO_SHA  /tmp/go.tar.gz" | sha256sum -c -
+      - tar -C /opt/go --strip-components=1 -xzf /tmp/go.tar.gz
+      - rm -f /tmp/go.tar.gz
+      - ln -sf /opt/go/bin/go /usr/local/bin/go
     gradle:
       - yes
     output: build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
     binary: 
       https://github.com/JayXT/ResticDroid/releases/download/v%v/ResticDroid-v%v-armeabi-v7a.apk
     prebuild:
+      - export PATH=/opt/go/bin:$PATH
       - export ANDROID_NDK_HOME=$$NDK$$
       - ../tools/build-restic.sh
     scanignore:
@@ -43,18 +45,20 @@ Builds:
     subdir: app
     submodules: true
     sudo:
-      - echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.d/forky.list
-      - apt-get update
-      - apt-get install -y -t forky golang-1.26-go=1.26.7-1
-      - rm -f /etc/apt/sources.list.d/forky.list
-      - apt-get update
-      - ln -sf /usr/lib/go-1.26/bin/go /usr/local/bin/go
+      - install -d /opt/go
+      - curl -sSLo /tmp/go.tar.gz https://go.dev/dl/go1.26.7.linux-amd64.tar.gz
+      - GO_SHA=ffb5f8de10c62550dfddab66b36b57030721e0a44a3218e9e1181d7b59f121ca
+      - echo "$GO_SHA  /tmp/go.tar.gz" | sha256sum -c -
+      - tar -C /opt/go --strip-components=1 -xzf /tmp/go.tar.gz
+      - rm -f /tmp/go.tar.gz
+      - ln -sf /opt/go/bin/go /usr/local/bin/go
     gradle:
       - yes
     output: build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
     binary: 
       https://github.com/JayXT/ResticDroid/releases/download/v%v/ResticDroid-v%v-arm64-v8a.apk
     prebuild:
+      - export PATH=/opt/go/bin:$PATH
       - export ANDROID_NDK_HOME=$$NDK$$
       - ../tools/build-restic.sh
     scanignore:
@@ -68,18 +72,20 @@ Builds:
     subdir: app
     submodules: true
     sudo:
-      - echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.d/forky.list
-      - apt-get update
-      - apt-get install -y -t forky golang-1.26-go=1.26.7-1
-      - rm -f /etc/apt/sources.list.d/forky.list
-      - apt-get update
-      - ln -sf /usr/lib/go-1.26/bin/go /usr/local/bin/go
+      - install -d /opt/go
+      - curl -sSLo /tmp/go.tar.gz https://go.dev/dl/go1.26.7.linux-amd64.tar.gz
+      - GO_SHA=ffb5f8de10c62550dfddab66b36b57030721e0a44a3218e9e1181d7b59f121ca
+      - echo "$GO_SHA  /tmp/go.tar.gz" | sha256sum -c -
+      - tar -C /opt/go --strip-components=1 -xzf /tmp/go.tar.gz
+      - rm -f /tmp/go.tar.gz
+      - ln -sf /opt/go/bin/go /usr/local/bin/go
     gradle:
       - yes
     output: build/outputs/apk/release/app-x86_64-release-unsigned.apk
     binary: 
       https://github.com/JayXT/ResticDroid/releases/download/v%v/ResticDroid-v%v-x86_64.apk
     prebuild:
+      - export PATH=/opt/go/bin:$PATH
       - export ANDROID_NDK_HOME=$$NDK$$
       - ../tools/build-restic.sh
     scanignore:
