@@ -24,13 +24,13 @@ Builds:
       - echo "$GO_SHA  /tmp/go.tar.gz" | sha256sum -c -
       - tar -C /opt/go --strip-components=1 -xzf /tmp/go.tar.gz
       - rm -f /tmp/go.tar.gz
+      - ln -sf /opt/go/bin/go /usr/local/bin/go
     gradle:
       - yes
     output: build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
     prebuild:
       - export PATH=/opt/go/bin:$PATH
       - export ANDROID_NDK_HOME=$$NDK$$
-      - export RESTIC_ABIS="armeabi-v7a"
       - ../tools/build-restic.sh
     scanignore:
       - restic-android/src/main/jniLibs
@@ -49,13 +49,13 @@ Builds:
       - echo "$GO_SHA  /tmp/go.tar.gz" | sha256sum -c -
       - tar -C /opt/go --strip-components=1 -xzf /tmp/go.tar.gz
       - rm -f /tmp/go.tar.gz
+      - ln -sf /opt/go/bin/go /usr/local/bin/go
     gradle:
       - yes
     output: build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
     prebuild:
       - export PATH=/opt/go/bin:$PATH
       - export ANDROID_NDK_HOME=$$NDK$$
-      - export RESTIC_ABIS="arm64-v8a"
       - ../tools/build-restic.sh
     scanignore:
       - restic-android/src/main/jniLibs
@@ -74,13 +74,13 @@ Builds:
       - echo "$GO_SHA  /tmp/go.tar.gz" | sha256sum -c -
       - tar -C /opt/go --strip-components=1 -xzf /tmp/go.tar.gz
       - rm -f /tmp/go.tar.gz
+      - ln -sf /opt/go/bin/go /usr/local/bin/go
     gradle:
       - yes
     output: build/outputs/apk/release/app-x86_64-release-unsigned.apk
     prebuild:
       - export PATH=/opt/go/bin:$PATH
       - export ANDROID_NDK_HOME=$$NDK$$
-      - export RESTIC_ABIS="x86_64"
       - ../tools/build-restic.sh
     scanignore:
       - restic-android/src/main/jniLibs
