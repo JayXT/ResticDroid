@@ -128,7 +128,7 @@ fi
 one() { printf '%s\n' "$1" | sort -u | tr '\n' ' ' | sed 's/ $//'; }
 
 GO_PINNED=$(tr -d '[:space:]' < "$ROOT/.go-version")
-GO_FDROID=$(one "$(sed -n 's|.*/go\([0-9][0-9.]*\)\.linux-amd64\.tar\.gz.*|\1|p' "$FDROID")")
+GO_FDROID=$(one "$(sed -n 's|.*golang-[0-9.]*-go=\([0-9][0-9.]*\)-[0-9]*.*|\1|p' "$FDROID")")
 [ "$GO_FDROID" = "$GO_PINNED" ] ||
     fail "$(basename "$FDROID") installs Go '$GO_FDROID' but .go-version says '$GO_PINNED'"
 
