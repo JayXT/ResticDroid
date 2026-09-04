@@ -46,11 +46,12 @@
 # What still needs a merge request
 # --------------------------------
 #
-# The bot only fills in the version and the tag; everything else in a build
-# block is carried forward. So bumping .go-version or the NDK means editing
-# fdroid/*.yml too - and after inclusion that file lives in fdroiddata, which
-# takes a merge request of its own. This script fails when the pins drift, in
-# the commit that moves them, rather than at F-Droid weeks later.
+# Nothing, as long as this stays true: the F-Droid recipe reads .go-version
+# and .ndk-version out of this repository at build time instead of repeating
+# them, and builds Go from source at the tag it finds there. Bumping either is
+# a commit here and no edit anywhere else. The recipe lives in fdroiddata once
+# the app is included, and every change to it costs a merge request, so the
+# checks below fail if a refactor ever cuts that wire.
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -123,19 +124,34 @@ if [ -n "$missing" ]; then
     } >&2
 fi
 
-# Pins F-Droid cannot read from this repository, so they are written twice and
-# have to be kept in step by hand.
-one() { printf '%s\n' "$1" | sort -u | tr '\n' ' ' | sed 's/ $//'; }
-
+# The toolchain is an input to the output bytes, so there is exactly one place
+# to state each half of it and everything else reads that place. These checks
+# guard the reading, not the value: a recipe that goes back to naming its own
+# Go or NDK builds something this repository never asked for, and says so only
+# by failing F-Droid's binary comparison weeks later.
 GO_PINNED=$(tr -d '[:space:]' < "$ROOT/.go-version")
-GO_FDROID=$(one "$(sed -n 's|.*/go\([0-9][0-9.]*\)\.linux-amd64\.tar\.gz.*|\1|p' "$FDROID")")
-[ "$GO_FDROID" = "$GO_PINNED" ] ||
-    fail "$(basename "$FDROID") installs Go '$GO_FDROID' but .go-version says '$GO_PINNED'"
+NDK_PINNED=$(tr -d '[:space:]' < "$ROOT/.ndk-version" 2>/dev/null || true)
+[ -n "$NDK_PINNED" ] || fail ".ndk-version is missing or empty"
 
-NDK_FDROID=$(one "$(sed -n 's/^ *ndk: *\([0-9.]*\).*/\1/p' "$FDROID")")
-NDK_ELSEWHERE=$(one "$(grep -rho 'ndk;[0-9.]*' "$ROOT/.github/workflows" | cut -d';' -f2)")
-[ "$NDK_FDROID" = "$NDK_ELSEWHERE" ] ||
-    fail "$(basename "$FDROID") uses NDK '$NDK_FDROID' but the workflows install '$NDK_ELSEWHERE'"
+FDROID_NAME=$(basename "$FDROID")
+grep -q '\.go-version' "$FDROID" ||
+    fail "$FDROID_NAME no longer reads .go-version"
+grep -q '\.ndk-version' "$FDROID" ||
+    fail "$FDROID_NAME no longer reads .ndk-version"
+! grep -q '^ *ndk:' "$FDROID" ||
+    fail "$FDROID_NAME pins ndk: again; it should read .ndk-version"
+! grep -qE 'go[0-9][0-9.]*\.linux-amd64|golang-[0-9.]*-go=' "$FDROID" ||
+    fail "$FDROID_NAME installs a fixed Go; it should read .go-version"
+! grep -rq 'ndk;[0-9]' "$ROOT/.github/workflows" ||
+    fail "a workflow hardcodes an NDK version; it should read .ndk-version"
+
+DOCKER=$ROOT/tools/Dockerfile.debian13
+if [ -f "$DOCKER" ]; then
+    grep -q "NDK_VERSION=$NDK_PINNED" "$DOCKER" ||
+        fail "$(basename "$DOCKER") does not build with NDK $NDK_PINNED"
+    grep -q "GO_VERSION=$GO_PINNED" "$DOCKER" ||
+        fail "$(basename "$DOCKER") does not build with Go $GO_PINNED"
+fi
 
 # Reproducible builds: F-Droid downloads the published APK named by each
 # binary: and refuses to publish unless it matches what it just built. That
@@ -164,6 +180,6 @@ done
 if [ "$status" -eq 0 ]; then
     echo "check-release: $VERSION_NAME / $VERSION_CODE, publishing as $(
         for o in $OFFSETS; do printf '%s ' $((VERSION_CODE * 10 + o)); done)"
-    echo "check-release: Go $GO_PINNED, NDK $NDK_FDROID, consistent with F-Droid"
+    echo "check-release: Go $GO_PINNED, NDK $NDK_PINNED, read from here by F-Droid"
 fi
 exit "$status"

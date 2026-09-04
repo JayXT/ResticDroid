@@ -202,7 +202,7 @@ not public issues.
 ## Building
 
 `./gradlew check assembleRelease`, with submodules checked out. Needs JDK 21,
-the Android SDK with NDK 27.2.12479018, and the Go version in `.go-version` —
+the Android SDK with the NDK in `.ndk-version`, the Go version in `.go-version` —
 Gradle cross-compiles restic itself and caches the result until
 `third_party/restic` moves. To avoid installing that toolchain,
 `tools/container-build.sh` does the same in a container.

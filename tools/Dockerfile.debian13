@@ -23,7 +23,7 @@ ARG NDK_VERSION=27.2.12479018
 ENV DEBIAN_FRONTEND=noninteractive \
     ANDROID_HOME=/opt/android-sdk \
     ANDROID_SDK_ROOT=/opt/android-sdk \
-    ANDROID_NDK_HOME=/opt/android-sdk/ndk/27.2.12479018 \
+    ANDROID_NDK_HOME=/opt/android-sdk/ndk/${NDK_VERSION} \
     JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 
 # JDK 21 is what AGP 9 wants and what Debian 13 ships, so apt is the right

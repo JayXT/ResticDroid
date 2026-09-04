@@ -41,8 +41,11 @@ jobs:
 
       - uses: android-actions/setup-android@v4
 
+      # One pinned NDK, in the file the F-Droid recipe reads too.
       - name: Install NDK
-        run: sdkmanager --install "ndk;27.2.12479018"
+        run: |
+          echo "NDK_VERSION=$(cat .ndk-version)" >> "$GITHUB_ENV"
+          sdkmanager --install "ndk;$(cat .ndk-version)"
 
       - name: Identify the pinned restic
         id: restic
@@ -59,13 +62,13 @@ jobs:
             restic-android/src/main/res/raw/restic_version.txt
           # Keyed on the exact restic commit and the script that builds it, so
           # a bump to either invalidates the cache and nothing else does.
-          key: restic-${{ steps.restic.outputs.commit }}-${{ hashFiles('tools/build-restic.sh') }}-${{ hashFiles('.go-version') }}
+          key: restic-${{ steps.restic.outputs.commit }}-${{ hashFiles('tools/build-restic.sh') }}-${{ hashFiles('.go-version') }}-${{ hashFiles('.ndk-version') }}
 
       - name: Cross-compile restic
         if: steps.restic-cache.outputs.cache-hit != 'true'
         run: tools/build-restic.sh
         env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
 
       - name: Verify the binaries are what we think they are
         run: tools/verify-restic.sh

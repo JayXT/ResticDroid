@@ -3,7 +3,7 @@
 # Cross-compiles restic into restic-android/src/main/jniLibs. Called by Gradle,
 # by CI and by the F-Droid buildserver; runs standalone too:
 #
-#     ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018 tools/build-restic.sh
+#     ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$(cat .ndk-version) tools/build-restic.sh
 #
 # CGO_ENABLED=1 is not optional. Android has no /etc/resolv.conf, so Go's
 # pure-Go resolver falls back to 127.0.0.1:53 and every lookup fails. Linking
