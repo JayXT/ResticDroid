@@ -75,7 +75,11 @@ if [ $# -gt 0 ] && [ -n "$1" ]; then
 fi
 
 # One published APK per ABI, and F-Droid must agree about how many.
-OFFSETS=$(sed -n 's/^ *- *"%c \* 10 + \([0-9][0-9]*\)".*/\1/p' "$FDROID")
+OFFSETS=$(awk '
+    /^VercodeOperation:/ { in_op = 1; next }
+    /^[^ -]/             { in_op = 0 }
+    in_op && /%c/        { if (match($0, /\+ *[0-9]+/)) print substr($0, RSTART + 1) + 0 }
+' "$FDROID")
 [ -n "$OFFSETS" ] || fail "no VercodeOperation entries in $(basename "$FDROID")"
 
 ABIS=$(sed -n 's/.*include(\(.*\)).*/\1/p' "$GRADLE" | head -1 | tr -cd , | wc -c)

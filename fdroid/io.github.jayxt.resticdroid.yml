@@ -1,24 +1,12 @@
-# ResticDroid metadata for F-Droid.
-#
-# Copy this file to metadata/io.github.jayxt.resticdroid.yml in a fork of
-# https://gitlab.com/fdroid/fdroiddata and open a merge request. Once the app is
-# accepted, UpdateCheckMode below makes every subsequent release automatic:
-# tagging vX.Y.Z in this repository is the only step a maintainer takes.
-#
-# After inclusion, fdroiddata holds the authoritative copy: keep this one in
-# step with it so the next change starts from what F-Droid actually builds.
-
 Categories:
-  - System
   - Security
+  - System
 License: GPL-3.0-or-later
 AuthorName: The ResticDroid contributors
 WebSite: https://github.com/JayXT/ResticDroid
 SourceCode: https://github.com/JayXT/ResticDroid
 IssueTracker: https://github.com/JayXT/ResticDroid/issues
 Changelog: https://github.com/JayXT/ResticDroid/releases
-
-Summary: Scheduled, encrypted backups with restic
 
 Description: |-
   ResticDroid backs your phone up with restic, the open-source backup program,
@@ -34,16 +22,16 @@ Description: |-
 
   * Backup profiles: what to back up, where to send it, and when.
   * Conditions for scheduled runs: only while charging, only on an unmetered
-    network, only on named Wi-Fi networks, only above a battery level.
+  network, only on named Wi-Fi networks, only above a battery level.
   * Repositories on Backblaze B2, S3, Azure, Google Cloud Storage, Swift,
-    a REST server, or a local folder.
+  a REST server, or a local folder.
   * Fingerprint, or the repository password, before backups and restores that
-    you start yourself. Scheduled runs are never prompted.
+  you start yourself. Scheduled runs are never prompted.
   * Local repositories are excluded from every backup automatically, so a
-    backup can never copy itself.
+  backup can never copy itself.
   * The configuration is plain text in /sdcard/ResticDroid, one file per
-    profile. Edit it in any text editor and the app follows along. There is
-    nothing to import or export.
+  profile. Edit it in any text editor and the app follows along. There is
+  nothing to import or export.
 
   Passwords and API keys are held in the Android keystore, hardware-backed
   where the device supports it, and never appear in the configuration files.
@@ -64,27 +52,22 @@ Builds:
     sudo:
       - install -d /opt/go
       - curl -sSLo /tmp/go.tar.gz https://go.dev/dl/go1.26.7.linux-amd64.tar.gz
-      - echo "ffb5f8de10c62550dfddab66b36b57030721e0a44a3218e9e1181d7b59f121ca  /tmp/go.tar.gz" | sha256sum -c -
+      - GO_SHA=ffb5f8de10c62550dfddab66b36b57030721e0a44a3218e9e1181d7b59f121ca
+      - echo "$GO_SHA  /tmp/go.tar.gz" | sha256sum -c -
       - tar -C /opt/go --strip-components=1 -xzf /tmp/go.tar.gz
       - rm -f /tmp/go.tar.gz
     gradle:
       - yes
-    ndk: 27.2.12479018
+    output: build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
     prebuild:
       - export PATH=/opt/go/bin:$PATH
       - export ANDROID_NDK_HOME=$$NDK$$
       - export RESTIC_ABIS="armeabi-v7a"
       - ../tools/build-restic.sh
     scanignore:
-      # librestic.so is produced by the prebuild step above from the pinned
-      # restic sources in third_party/restic. It is not a prebuilt: it does not
-      # exist until this build makes it, and it is in .gitignore precisely so
-      # that it can never be committed.
       - restic-android/src/main/jniLibs
-      # restic's own test fixtures are gzipped repositories, which the scanner
-      # reads as binaries. They are upstream test data, compiled into nothing.
       - third_party/restic
-    output: build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
+    ndk: 27.2.12479018
 
   - versionName: 0.2.0
     versionCode: 2002
@@ -94,12 +77,13 @@ Builds:
     sudo:
       - install -d /opt/go
       - curl -sSLo /tmp/go.tar.gz https://go.dev/dl/go1.26.7.linux-amd64.tar.gz
-      - echo "ffb5f8de10c62550dfddab66b36b57030721e0a44a3218e9e1181d7b59f121ca  /tmp/go.tar.gz" | sha256sum -c -
+      - GO_SHA=ffb5f8de10c62550dfddab66b36b57030721e0a44a3218e9e1181d7b59f121ca
+      - echo "$GO_SHA  /tmp/go.tar.gz" | sha256sum -c -
       - tar -C /opt/go --strip-components=1 -xzf /tmp/go.tar.gz
       - rm -f /tmp/go.tar.gz
     gradle:
       - yes
-    ndk: 27.2.12479018
+    output: build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
     prebuild:
       - export PATH=/opt/go/bin:$PATH
       - export ANDROID_NDK_HOME=$$NDK$$
@@ -108,7 +92,7 @@ Builds:
     scanignore:
       - restic-android/src/main/jniLibs
       - third_party/restic
-    output: build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
+    ndk: 27.2.12479018
 
   - versionName: 0.2.0
     versionCode: 2004
@@ -118,12 +102,13 @@ Builds:
     sudo:
       - install -d /opt/go
       - curl -sSLo /tmp/go.tar.gz https://go.dev/dl/go1.26.7.linux-amd64.tar.gz
-      - echo "ffb5f8de10c62550dfddab66b36b57030721e0a44a3218e9e1181d7b59f121ca  /tmp/go.tar.gz" | sha256sum -c -
+      - GO_SHA=ffb5f8de10c62550dfddab66b36b57030721e0a44a3218e9e1181d7b59f121ca
+      - echo "$GO_SHA  /tmp/go.tar.gz" | sha256sum -c -
       - tar -C /opt/go --strip-components=1 -xzf /tmp/go.tar.gz
       - rm -f /tmp/go.tar.gz
     gradle:
       - yes
-    ndk: 27.2.12479018
+    output: build/outputs/apk/release/app-x86_64-release-unsigned.apk
     prebuild:
       - export PATH=/opt/go/bin:$PATH
       - export ANDROID_NDK_HOME=$$NDK$$
@@ -132,23 +117,14 @@ Builds:
     scanignore:
       - restic-android/src/main/jniLibs
       - third_party/restic
-    output: build/outputs/apk/release/app-x86_64-release-unsigned.apk
+    ndk: 27.2.12479018
 
-# One upstream release produces three APKs. VercodeOperation is what makes that
-# work with automatic updates: F-Droid detects the new tag, reads the base
-# versionCode out of app/build.gradle.kts, and generates one build block per
-# expression below. Each expression is the offset that app/build.gradle.kts
-# adds for that ABI, in the order the APKs are listed above.
-VercodeOperation:
-  - "%c * 10 + 1"   # armeabi-v7a
-  - "%c * 10 + 2"   # arm64-v8a
-  - "%c * 10 + 4"   # x86_64
-
-# Release tags are vX.Y.Z. The anchors keep release candidates and any other
-# tag shape out.
-UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
-UpdateCheckName: Ignore
 AutoUpdateMode: Version v%v
-
+UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
+VercodeOperation:
+  - '%c * 10 + 1'
+  - '%c * 10 + 2'
+  - '%c * 10 + 4'
+UpdateCheckName: Ignore
 CurrentVersion: 0.2.0
 CurrentVersionCode: 2004
