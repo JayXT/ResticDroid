@@ -93,8 +93,7 @@ Builds:
       - third_party/restic
     ndk: 27.2.12479018
 
-AllowedAPKSigningKeys: 
-  2d96df69cc3102fb27a3838f1c44dee7bb3412b19e4252908f79e9e4612099e4
+AllowedAPKSigningKeys: 2d96df69cc3102fb27a3838f1c44dee7bb3412b19e4252908f79e9e4612099e4
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
