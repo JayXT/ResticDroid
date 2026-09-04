@@ -72,7 +72,11 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
+            // findByName, not getByName: F-Droid deletes the signingConfigs
+            // block before building, and a hard reference to what it removed
+            // fails the build outright rather than producing the unsigned APK
+            // it is asking for.
+            signingConfig = signingConfigs.findByName("release")?.takeIf { it.storeFile != null }
         }
         debug {
             applicationIdSuffix = ".debug"
