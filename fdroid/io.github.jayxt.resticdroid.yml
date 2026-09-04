@@ -29,9 +29,9 @@ Description: |-
   you start yourself. Scheduled runs are never prompted.
   * Local repositories are excluded from every backup automatically, so a
   backup can never copy itself.
-  * The configuration is plain text in /sdcard/ResticDroid, one file per
-  profile. Edit it in any text editor and the app follows along. There is
-  nothing to import or export.
+  * The configuration is plain text under /storage/emulated/0/ResticDroid,
+  one file per profile. Edit it in any text editor and the app follows
+  along. There is nothing to import or export.
 
   Passwords and API keys are held in the Android keystore, hardware-backed
   where the device supports it, and never appear in the configuration files.

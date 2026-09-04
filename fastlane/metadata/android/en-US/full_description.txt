@@ -41,10 +41,10 @@ that waits for a fingerprint at 3am is a backup that does not happen.
 
 <b>Configuration you can read</b>
 
-Everything you configure is plain text in /sdcard/ResticDroid, one file per
-profile, one per repository. Edit it in any text editor, over USB or on the
-phone, and the app picks the change up immediately. There is no database, and
-nothing to import or export.
+Everything you configure is plain text under /storage/emulated/0/ResticDroid -
+one file per profile, one per repository. Edit it in any text editor, over USB
+or on the phone, and the app picks the change up immediately. There is no
+database, and nothing to import or export.
 
 <b>No recursive backups</b>
 

@@ -6,5 +6,5 @@ First release.
 * Repositories on B2, S3, Azure, GCS, Swift, REST and local folders.
 * Snapshot browsing, file listing, diff, forget, prune, restore.
 * Fingerprint or repository-password confirmation.
-* Plain-text config in /sdcard/ResticDroid, watched for edits.
+* Plain-text config in internal storage, watched for edits.
 * Bundles restic 0.19.1, built from source.
