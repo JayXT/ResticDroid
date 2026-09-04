@@ -137,6 +137,30 @@ NDK_ELSEWHERE=$(one "$(grep -rho 'ndk;[0-9.]*' "$ROOT/.github/workflows" | cut -
 [ "$NDK_FDROID" = "$NDK_ELSEWHERE" ] ||
     fail "$(basename "$FDROID") uses NDK '$NDK_FDROID' but the workflows install '$NDK_ELSEWHERE'"
 
+# Reproducible builds: F-Droid downloads the published APK named by each
+# binary: and refuses to publish unless it matches what it just built. That
+# makes the release workflow's asset names part of a contract held in
+# fdroiddata, where changing them costs a merge request.
+RELEASE=$ROOT/.github/workflows/release.yml
+MISPAIRED=$(awk '
+    /^ *output: / { sub(/.*\/app-/, ""); sub(/-release-unsigned\.apk.*/, ""); abi = $0 }
+    /^ *https:\/\/.*\.apk$/ || /^ *binary: *https/ {
+        url = $0; sub(/.*\//, "", url); sub(/\.apk.*/, "", url)
+        sub(/^ResticDroid-v%v-/, "", url)
+        if (abi != "" && url != abi)
+            print "binary: names " url " but the block builds " abi
+        abi = ""
+    }
+' "$FDROID")
+[ -z "$MISPAIRED" ] || fail "$MISPAIRED"
+
+for url in $(sed -n 's|^ *\(binary: *\)\?\(https://[^ ]*\.apk\) *$|\2|p' "$FDROID"); do
+    name=${url##*/}
+    expected=$(printf '%s' "$name" | sed 's/-v%v-/-${TAG}-/; s/-[a-z0-9_]*-\?[a-z0-9_]*\.apk$/-${abi}.apk/')
+    grep -qF "$expected" "$RELEASE" ||
+        fail "binary: expects '$name' but release.yml does not build that name"
+done
+
 if [ "$status" -eq 0 ]; then
     echo "check-release: $VERSION_NAME / $VERSION_CODE, publishing as $(
         for o in $OFFSETS; do printf '%s ' $((VERSION_CODE * 10 + o)); done)"
