@@ -12,6 +12,7 @@ depends on this app continuing to exist.
 ## Download
 
 <p align="center">
+  <a href="https://f-droid.org/packages/io.github.jayxt.resticdroid"><img src="assets/badges/get-it-on-fdroid.png" alt="Get it on F-Droid" height="40"></a>&nbsp;
   <a href="https://github.com/JayXT/ResticDroid/releases"><img src="assets/badges/get-it-on-github.svg" alt="Get it on GitHub" height="40"></a>&nbsp;
   <a href="https://apps.obtainium.imranr.dev/redirect.html?r=obtainium://add/https://github.com/JayXT/ResticDroid"><img src="assets/badges/get-it-on-obtainium.png" alt="Get it on Obtainium" height="40"></a>
 </p>
@@ -21,10 +22,6 @@ in the background; it picks the right APK for your device on its own, since the
 ABI is in the filename. Downloading by hand, take the one matching your
 device — `arm64-v8a` unless you know otherwise — and check it against the
 release key's published SHA-256 with `apksigner verify --print-certs`.
-
-F-Droid builds from source and signs with its own key, so an F-Droid install
-and a GitHub install cannot upgrade one another. Switching means uninstalling,
-which deletes the stored repository passwords.
 
 ## Screenshots
 
