@@ -126,12 +126,14 @@ class ConfigStore(private val context: Context) {
         target.parentFile?.mkdirs()
         val temp = File(target.parentFile, "." + target.name + ".tmp")
         temp.writeText(content)
+        // A rename is all-or-nothing: a reader sees the old file or the new
+        // one. Where the filesystem refuses to rename over an existing file,
+        // write in place instead - that can be read half-written, but it never
+        // leaves nothing at all, which deleting the target to clear the way
+        // for a second rename attempt would.
         if (!temp.renameTo(target)) {
-            target.delete()
-            if (!temp.renameTo(target)) {
-                target.writeText(content)
-                temp.delete()
-            }
+            target.writeText(content)
+            temp.delete()
         }
     }
 

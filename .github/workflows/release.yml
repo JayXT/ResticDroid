@@ -25,30 +25,34 @@ jobs:
     # It lives in an environment rather than in repository secrets so that it is
     # decrypted only for a run someone approved: Settings -> Environments ->
     # release -> Required reviewers, then add KEYSTORE_BASE64,
-    # KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD there. Pin this job's
-    # actions to commit SHAs too - a moved tag on an action in a job that holds
-    # a signing key is enough to leak it.
+    # KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD there.
+    #
+    # This job's actions are pinned to commit SHAs; CI's are not. A tag can be
+    # moved to point at other code, and in a job that holds a signing key that
+    # is enough to leak it. Pinned, such a change arrives as a Dependabot pull
+    # request rather than at the next release - so merge that request on a
+    # different day from the one you tag on.
     environment: release
     # The tag being released, however the workflow was started.
     env:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           ref: ${{ env.TAG }}
 
-      - uses: actions/setup-java@v6
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
           distribution: temurin
           java-version: "21"
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: .go-version
           cache-dependency-path: third_party/restic/go.sum
 
-      - uses: android-actions/setup-android@v4
+      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
 
       # One pinned NDK, in the file the F-Droid recipe reads too.
       - name: Install NDK
@@ -64,7 +68,7 @@ jobs:
       - name: Verify the binaries
         run: tools/verify-restic.sh
 
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       - name: Check
         run: ./gradlew check
@@ -139,7 +143,7 @@ jobs:
           } > dist/BUILD-INFO.txt
 
       - name: Publish the GitHub release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: |
             dist/*.apk
