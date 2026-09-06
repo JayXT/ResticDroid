@@ -12,7 +12,6 @@ depends on this app continuing to exist.
 ## Download
 
 <p align="center">
-  <a href="https://f-droid.org/packages/io.github.jayxt.resticdroid"><img src="assets/badges/get-it-on-fdroid.png" alt="Get it on F-Droid" height="40"></a>&nbsp;
   <a href="https://github.com/JayXT/ResticDroid/releases"><img src="assets/badges/get-it-on-github.svg" alt="Get it on GitHub" height="40"></a>&nbsp;
   <a href="https://apps.obtainium.imranr.dev/redirect.html?r=obtainium://add/https://github.com/JayXT/ResticDroid"><img src="assets/badges/get-it-on-obtainium.png" alt="Get it on Obtainium" height="40"></a>
 </p>
