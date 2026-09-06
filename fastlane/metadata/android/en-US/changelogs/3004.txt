@@ -1,0 +1,8 @@
+* Retention only removes a profile's own snapshots now. It used to match
+  any snapshot carrying the profile's name, so a repository shared with a
+  desktop could have its history pruned by the phone.
+* New: count tag combinations separately, keeping a backup you start by
+  hand apart from a scheduled one.
+* Snapshot times are shown in this device's time zone, not UTC, and the
+  list is ordered by when each backup happened.
+* A failed configuration write can no longer leave the file missing.
