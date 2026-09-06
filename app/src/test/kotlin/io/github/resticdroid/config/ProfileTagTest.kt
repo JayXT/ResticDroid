@@ -1,6 +1,7 @@
 package io.github.resticdroid.config
 
 import io.github.resticdroid.engine.profileTag
+import io.github.resticdroid.engine.retentionScope
 import io.github.resticdroid.engine.snapshotTags
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -37,6 +38,28 @@ class ProfileTagTest {
         val p = profile(tags = listOf("phone"), manual = listOf("manual"))
         assertEquals(listOf("phone", "Data", "manual"), snapshotTags(p, manual = true))
         assertEquals(listOf("phone", "Data"), snapshotTags(p, manual = false))
+    }
+
+    @Test
+    fun `retention is scoped to every scheduled tag, so a shared repository is safe`() {
+        val p = profile(tags = listOf("Phone"), manual = listOf("manual"))
+        // PC,Data snapshots carry "Data" but not "Phone", so they are out of scope.
+        assertEquals("Phone,Data", retentionScope(p))
+        // A run started by hand is in scope: it carries both, plus one more.
+        assertEquals(listOf("Phone", "Data", "manual"), snapshotTags(p, manual = true))
+    }
+
+    @Test
+    fun `a profile with no tags of its own is scoped by its name alone`() {
+        assertEquals("Data", retentionScope(profile()))
+    }
+
+    @Test
+    fun `grouping by tags round-trips`() {
+        for (grouping in listOf(true, false)) {
+            val p = profile().copy(groupByTags = grouping)
+            assertEquals(grouping, Profile.fromIni("data", Ini.parse(p.toIni())).groupByTags)
+        }
     }
 
     @Test

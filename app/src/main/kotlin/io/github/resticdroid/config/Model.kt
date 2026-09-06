@@ -123,6 +123,7 @@ data class Profile(
     val conditions: Conditions = Conditions.Default,
     val retention: RetentionPolicy = RetentionPolicy.Default,
     val pruneDays: Int? = null,
+    val groupByTags: Boolean = false,
     val excludeCaches: Boolean = true,
     val includeApps: Boolean = false,
     val unknown: List<Pair<String, String>> = emptyList(),
@@ -141,7 +142,9 @@ data class Profile(
         .comment("destination id of a file in ../destinations.d, without the .conf")
         .comment("schedule    manual | every <N>h | daily HH:MM")
         .comment("tag         snapshot tag; repeat the key for more than one. The")
-        .comment("            profile's name is always added as a tag too.")
+        .comment("            profile's name is always added as a tag too. Retention")
+        .comment("            only ever touches snapshots carrying all of them, so a")
+        .comment("            repository shared with another machine stays safe.")
         .comment("manual-tag  same, but only on a run you start by hand")
         .comment("")
         .comment("Conditions apply to scheduled runs only. A backup you start by hand")
@@ -180,6 +183,11 @@ data class Profile(
         .put("keep-within", retention.within)
         .comment("Days between prunes. Unset prunes after every backup; 0 never does.")
         .put("prune", pruneDays)
+        .comment("Apply the policy to each tag combination separately, so a run you")
+        .comment("started by hand is kept apart from a scheduled one. Off, restic")
+        .comment("groups by host and paths instead, and editing the paths above")
+        .comment("leaves the older snapshots in a group that never ages out.")
+        .put("group-by-tags", groupByTags)
         .blank()
         .comment("Skip directories tagged as caches (CACHEDIR.TAG).")
         .put("exclude-caches", excludeCaches)
@@ -197,6 +205,7 @@ data class Profile(
             "require-charging", "require-unmetered", "require-idle", "min-battery",
             "wifi-ssid", "keep-last", "keep-hourly", "keep-daily", "keep-weekly",
             "keep-monthly", "keep-yearly", "keep-within", "exclude-caches", "include-apps",
+            "group-by-tags",
         )
 
         fun fromIni(id: String, ini: Ini): Profile = Profile(
@@ -227,6 +236,7 @@ data class Profile(
                 within = ini.get("keep-within"),
             ),
             pruneDays = ini.intOrNull("prune")?.coerceAtLeast(0),
+            groupByTags = ini.bool("group-by-tags", false),
             excludeCaches = ini.bool("exclude-caches", true),
             includeApps = ini.bool("include-apps", false),
             unknown = ini.keysExcept(KNOWN),

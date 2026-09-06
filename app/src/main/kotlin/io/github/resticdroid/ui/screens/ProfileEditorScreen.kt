@@ -85,6 +85,7 @@ fun ProfileEditorScreen(
     var schedule by remember(profileId) { mutableStateOf(existing?.schedule ?: Schedule.Manual) }
     var conditions by remember(profileId) { mutableStateOf(existing?.conditions ?: Conditions.Default) }
     var retention by remember(profileId) { mutableStateOf(existing?.retention ?: RetentionPolicy.Default) }
+    var groupByTags by remember(profileId) { mutableStateOf(existing?.groupByTags ?: false) }
     var confirmDelete by remember(profileId) { mutableStateOf(false) }
 
     fun currentPaths() = pathsText.lines().map(String::trim).filter(String::isNotEmpty)
@@ -278,6 +279,13 @@ fun ProfileEditorScreen(
             SectionHeader("Keep snapshots")
             RetentionEditor(retention) { retention = it }
             PruneEditor(pruneText) { pruneText = it }
+            SwitchRow(
+                title = "Count tag combinations separately",
+                subtitle = "Keep a run you started by hand apart from a scheduled one, " +
+                    "instead of grouping by the folders backed up.",
+                checked = groupByTags,
+                onChange = { groupByTags = it },
+            )
 
             SectionHeader("Status")
             SwitchRow(
@@ -308,6 +316,7 @@ fun ProfileEditorScreen(
                             schedule = schedule,
                             conditions = conditions,
                             retention = retention,
+                            groupByTags = groupByTags,
                             pruneDays = pruneText.toIntOrNull(),
                             excludeCaches = existing?.excludeCaches ?: true,
                             includeApps = includeApps,

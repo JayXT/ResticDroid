@@ -56,11 +56,26 @@ sealed interface RunEvent {
 internal fun profileTag(profile: Profile): String =
     profile.name.replace(",", "").trim().ifEmpty { profile.id }
 
+private fun clean(tags: List<String>): List<String> =
+    tags.map { it.replace(",", "").trim() }.filter { it.isNotEmpty() }.distinct()
+
+/** What every snapshot of this profile carries, whoever started the run. */
+internal fun scheduledTags(profile: Profile): List<String> =
+    clean(profile.tags + profileTag(profile))
+
 internal fun snapshotTags(profile: Profile, manual: Boolean): List<String> =
-    (profile.tags + profileTag(profile) + if (manual) profile.manualTags else emptyList())
-        .map { it.replace(",", "").trim() }
-        .filter { it.isNotEmpty() }
-        .distinct()
+    if (manual) clean(scheduledTags(profile) + profile.manualTags) else scheduledTags(profile)
+
+/**
+ * What `forget` is allowed to touch: every tag this profile puts on a
+ * scheduled snapshot, joined by commas so restic requires all of them.
+ *
+ * The profile name alone is not enough. A repository shared with a desktop can
+ * hold snapshots tagged PC,Data as well as Phone,Data, and --tag Data selects
+ * both - so the phone would apply its retention to the desktop's history.
+ */
+internal fun retentionScope(profile: Profile): String =
+    scheduledTags(profile).joinToString(",")
 
 class BackupEngine(
     private val context: Context,
@@ -218,7 +233,8 @@ class BackupEngine(
                 repository,
                 ResticCommand.forget(
                     policy = profile.retention,
-                    tags = listOf(profileTag(profile)),
+                    tags = listOf(retentionScope(profile)),
+                    groupBy = if (profile.groupByTags) "tags" else null,
                     prune = prune,
                 ),
             )

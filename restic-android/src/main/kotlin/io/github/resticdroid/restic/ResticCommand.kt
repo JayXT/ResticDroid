@@ -59,10 +59,33 @@ public class ResticCommand private constructor(
             return ResticCommand(a, true)
         }
 
-        public fun forget(policy: RetentionPolicy, tags: List<String> = emptyList(), prune: Boolean = true): ResticCommand {
+        /**
+         * Retention over the snapshots matching [tags].
+         *
+         * Each entry is one --tag, which restic reads as a comma-separated
+         * list of tags a snapshot must carry all of; separate entries are
+         * alternatives. There is no unscoped form on purpose: forget without
+         * --tag applies the policy to every snapshot in the repository,
+         * including those written by other devices sharing it.
+         *
+         * [groupBy] is restic's --group-by. Left out, restic groups by host
+         * and paths, so editing what a profile backs up leaves the older
+         * snapshots in a group of their own that never ages out. "tags" groups
+         * by the snapshot's whole tag set instead, and "" disables grouping.
+         */
+        public fun forget(
+            policy: RetentionPolicy,
+            tags: List<String>,
+            groupBy: String? = null,
+            prune: Boolean = true,
+        ): ResticCommand {
+            require(tags.isNotEmpty() && tags.none { it.isBlank() }) {
+                "forget must be scoped by tag, or it applies to the whole repository"
+            }
             val a = mutableListOf("forget", "--json")
             a += policy.args()
             tags.forEach { a += listOf("--tag", it) }
+            groupBy?.let { a += listOf("--group-by", it) }
             if (prune) a += "--prune"
             return ResticCommand(a, true)
         }

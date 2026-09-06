@@ -125,4 +125,37 @@ class ResticCommandSeparatorTest {
             ResticCommand.stats(snapshot = "aaa").args,
         )
     }
+
+    @Test
+    fun `retention is scoped by tag, grouped, and pruned`() {
+        val c = ResticCommand.forget(
+            policy = RetentionPolicy(last = 3),
+            tags = listOf("Phone,Data"),
+            groupBy = "tags",
+            prune = true,
+        )
+        assertEquals(
+            listOf(
+                "forget", "--json", "--keep-last", "3",
+                "--tag", "Phone,Data", "--group-by", "tags", "--prune",
+            ),
+            c.args,
+        )
+    }
+
+    @Test
+    fun `grouping is left to restic when the profile does not ask for it`() {
+        val c = ResticCommand.forget(RetentionPolicy(last = 3), listOf("Data"), prune = false)
+        assertEquals(listOf("forget", "--json", "--keep-last", "3", "--tag", "Data"), c.args)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `an unscoped forget would apply to the whole repository, so it is refused`() {
+        ResticCommand.forget(RetentionPolicy(last = 3), emptyList())
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `a blank scope is refused for the same reason`() {
+        ResticCommand.forget(RetentionPolicy(last = 3), listOf(""))
+    }
 }
