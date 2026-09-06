@@ -1,5 +1,8 @@
 package io.github.resticdroid.util
 
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 object Formats {
@@ -38,9 +41,25 @@ object Formats {
         }
     }
 
-    fun snapshotTime(rfc3339: String): String {
-        val date = rfc3339.substringBefore('T')
-        val time = rfc3339.substringAfter('T', "").take(5)
-        return if (time.isEmpty()) date else "$date $time"
-    }
+    /**
+     * A snapshot's timestamp, in this device's time zone.
+     *
+     * The offset in the string is not decoration. Go hardcodes the local zone
+     * to UTC on Android - zoneinfo_android.go sets it and never reads $TZ - so
+     * restic stamps every snapshot made here with Z, while the same repository
+     * holds snapshots from a desktop stamped with its own offset. The instants
+     * agree; only the wall clocks differ, and reading the digits off the string
+     * showed a backup taken at noon as having happened at ten.
+     */
+    fun snapshotTime(rfc3339: String, zone: ZoneId = ZoneId.systemDefault()): String =
+        runCatching {
+            OffsetDateTime.parse(rfc3339).atZoneSameInstant(zone).format(SNAPSHOT_TIME)
+        }.getOrElse {
+            val date = rfc3339.substringBefore('T')
+            val time = rfc3339.substringAfter('T', "").take(5)
+            if (time.isEmpty()) date else "$date $time"
+        }
+
+    private val SNAPSHOT_TIME: DateTimeFormatter =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.US)
 }

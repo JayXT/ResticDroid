@@ -34,7 +34,8 @@ class FormatsTest {
 
     @Test
     fun `snapshot timestamps are trimmed to minutes`() {
-        assertEquals("2026-08-29 09:00", Formats.snapshotTime("2026-08-29T09:00:00.123456+03:00"))
+        val kyiv = java.time.ZoneId.of("Europe/Kyiv")
+        assertEquals("2026-08-29 09:00", Formats.snapshotTime("2026-08-29T09:00:00.123456+03:00", kyiv))
         assertEquals("2026-08-29", Formats.snapshotTime("2026-08-29"))
     }
 }
@@ -62,5 +63,28 @@ class NextRunFormatTest {
         listOf(25 * 60_000L, 4 * 3_600_000L, 3 * 86_400_000L).forEach {
             org.junit.Assert.assertTrue(Formats.nextRun(now + it, now).contains(":"))
         }
+    }
+
+    @Test
+    fun `a snapshot stamped in UTC is shown in the device's zone`() {
+        // What restic writes on Android, where Go pins the local zone to UTC.
+        assertEquals(
+            "2026-09-06 12:34",
+            Formats.snapshotTime("2026-09-06T10:34:56.789Z", java.time.ZoneId.of("Europe/Berlin")),
+        )
+    }
+
+    @Test
+    fun `a snapshot stamped with an offset is converted, not trusted`() {
+        // What the same repository holds from a desktop two zones away.
+        assertEquals(
+            "2026-09-06 12:34",
+            Formats.snapshotTime("2026-09-06T13:34:56+03:00", java.time.ZoneId.of("Europe/Berlin")),
+        )
+    }
+
+    @Test
+    fun `something unparseable still shows what it can`() {
+        assertEquals("2026-09-06 10:34", Formats.snapshotTime("2026-09-06T10:34 (no offset)"))
     }
 }
