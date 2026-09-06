@@ -1,6 +1,8 @@
 package io.github.resticdroid.restic
 
 import org.json.JSONObject
+import java.time.Instant
+import java.time.OffsetDateTime
 
 public data class ResticSnapshot(
     val id: String,
@@ -12,6 +14,19 @@ public data class ResticSnapshot(
     val tags: List<String>,
     val summary: SnapshotSummary?,
 ) {
+    /**
+     * When this snapshot was taken, for ordering.
+     *
+     * [time] is what restic wrote, offset and all, and comparing those strings
+     * is not the same as comparing moments: Go pins the local zone to UTC on
+     * Android, so a phone stamps 10:00:00Z where a desktop two zones east
+     * stamps 11:00:00+03:00 for a moment an hour earlier. Sorted as text the
+     * older one wins. Unparseable falls to the epoch, and so to the bottom of
+     * a list sorted newest first.
+     */
+    public val instant: Instant
+        get() = runCatching { OffsetDateTime.parse(time).toInstant() }.getOrDefault(Instant.EPOCH)
+
     public data class SnapshotSummary(
         val filesNew: Long,
         val filesChanged: Long,

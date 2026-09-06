@@ -311,7 +311,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             runCatching {
                 app.restic.executeJson(repository(destinationId), ResticCommand.snapshots())
                     .map(ResticSnapshot::from)
-                    .sortedByDescending { it.time }
+                    .sortedByDescending { it.instant }
             }.explained(destinationId).onSuccess { listings[destinationId] = it }
         }
     }
