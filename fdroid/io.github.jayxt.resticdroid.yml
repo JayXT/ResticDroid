@@ -16,7 +16,7 @@ Repo: https://github.com/JayXT/ResticDroid.git
 Builds:
   - versionName: 0.3.0
     versionCode: 3001
-    commit: d474a5e5a554c71dafa888361f0dff610b2f8455
+    commit: 5df55e46b7139d1bae9dea5e8f27568b98bb31de
     subdir: app
     submodules: true
     sudo:
@@ -47,7 +47,7 @@ Builds:
 
   - versionName: 0.3.0
     versionCode: 3002
-    commit: d474a5e5a554c71dafa888361f0dff610b2f8455
+    commit: 5df55e46b7139d1bae9dea5e8f27568b98bb31de
     subdir: app
     submodules: true
     sudo:
@@ -78,7 +78,7 @@ Builds:
 
   - versionName: 0.3.0
     versionCode: 3004
-    commit: d474a5e5a554c71dafa888361f0dff610b2f8455
+    commit: 5df55e46b7139d1bae9dea5e8f27568b98bb31de
     subdir: app
     submodules: true
     sudo:
