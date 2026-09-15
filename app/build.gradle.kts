@@ -21,8 +21,8 @@ android {
         // and a derived value would be invisible to it. They are the only copy -
         // a second one elsewhere in this file would drift, and :app:checkVersion
         // would happily pass while the APK carried the old number.
-        versionCode = 201
-        versionName = "0.2.1"
+        versionCode = 300
+        versionName = "0.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

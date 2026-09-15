@@ -14,8 +14,8 @@ RepoType: git
 Repo: https://github.com/JayXT/ResticDroid.git
 
 Builds:
-  - versionName: 0.2.1
-    versionCode: 2011
+  - versionName: 0.3.0
+    versionCode: 3001
     commit: d474a5e5a554c71dafa888361f0dff610b2f8455
     subdir: app
     submodules: true
@@ -34,22 +34,19 @@ Builds:
       https://github.com/JayXT/ResticDroid/releases/download/v%v/ResticDroid-v%v-armeabi-v7a.apk
     srclibs:
       - go@go1.26.7
-    prebuild:
+    build:
       - set -e
       - GO_VER=$(tr -d '[:space:]' < ../.go-version)
       - git -C $$go$$ checkout -f "go${GO_VER#go}"
-      - (cd $$go$$/src && GOROOT_BOOTSTRAP=/usr/lib/go ./make.bash)
-      - NDK_VER=$(cat ../.ndk-version 2>/dev/null || echo 27.2.12479018)
+      - GOROOT_BOOTSTRAP=/usr/lib/go $$go$$/src/make.bash
+      - NDK_VER=$(cat ../.ndk-version)
       - sdkmanager "ndk;$NDK_VER"
       - export ANDROID_NDK_HOME=$$SDK$$/ndk/$NDK_VER
       - export PATH=$$go$$/bin:$PATH
       - ../tools/build-restic.sh
-    scanignore:
-      - restic-android/src/main/jniLibs
-      - third_party/restic
 
-  - versionName: 0.2.1
-    versionCode: 2012
+  - versionName: 0.3.0
+    versionCode: 3002
     commit: d474a5e5a554c71dafa888361f0dff610b2f8455
     subdir: app
     submodules: true
@@ -68,22 +65,19 @@ Builds:
       https://github.com/JayXT/ResticDroid/releases/download/v%v/ResticDroid-v%v-arm64-v8a.apk
     srclibs:
       - go@go1.26.7
-    prebuild:
+    build:
       - set -e
       - GO_VER=$(tr -d '[:space:]' < ../.go-version)
       - git -C $$go$$ checkout -f "go${GO_VER#go}"
-      - (cd $$go$$/src && GOROOT_BOOTSTRAP=/usr/lib/go ./make.bash)
-      - NDK_VER=$(cat ../.ndk-version 2>/dev/null || echo 27.2.12479018)
+      - GOROOT_BOOTSTRAP=/usr/lib/go $$go$$/src/make.bash
+      - NDK_VER=$(cat ../.ndk-version)
       - sdkmanager "ndk;$NDK_VER"
       - export ANDROID_NDK_HOME=$$SDK$$/ndk/$NDK_VER
       - export PATH=$$go$$/bin:$PATH
       - ../tools/build-restic.sh
-    scanignore:
-      - restic-android/src/main/jniLibs
-      - third_party/restic
 
-  - versionName: 0.2.1
-    versionCode: 2014
+  - versionName: 0.3.0
+    versionCode: 3004
     commit: d474a5e5a554c71dafa888361f0dff610b2f8455
     subdir: app
     submodules: true
@@ -102,19 +96,16 @@ Builds:
       https://github.com/JayXT/ResticDroid/releases/download/v%v/ResticDroid-v%v-x86_64.apk
     srclibs:
       - go@go1.26.7
-    prebuild:
+    build:
       - set -e
       - GO_VER=$(tr -d '[:space:]' < ../.go-version)
       - git -C $$go$$ checkout -f "go${GO_VER#go}"
-      - (cd $$go$$/src && GOROOT_BOOTSTRAP=/usr/lib/go ./make.bash)
-      - NDK_VER=$(cat ../.ndk-version 2>/dev/null || echo 27.2.12479018)
+      - GOROOT_BOOTSTRAP=/usr/lib/go $$go$$/src/make.bash
+      - NDK_VER=$(cat ../.ndk-version)
       - sdkmanager "ndk;$NDK_VER"
       - export ANDROID_NDK_HOME=$$SDK$$/ndk/$NDK_VER
       - export PATH=$$go$$/bin:$PATH
       - ../tools/build-restic.sh
-    scanignore:
-      - restic-android/src/main/jniLibs
-      - third_party/restic
 
 AllowedAPKSigningKeys: 2d96df69cc3102fb27a3838f1c44dee7bb3412b19e4252908f79e9e4612099e4
 
@@ -125,5 +116,5 @@ VercodeOperation:
   - '%c * 10 + 2'
   - '%c * 10 + 4'
 UpdateCheckName: Ignore
-CurrentVersion: 0.2.1
-CurrentVersionCode: 2014
+CurrentVersion: 0.3.0
+CurrentVersionCode: 3004
