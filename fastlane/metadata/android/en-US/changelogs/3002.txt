@@ -6,3 +6,4 @@
 * Snapshot times are shown in this device's time zone, not UTC, and the
   list is ordered by when each backup happened.
 * A failed configuration write can no longer leave the file missing.
+* Scheduling background activity fixes.

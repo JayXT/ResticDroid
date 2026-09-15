@@ -3,6 +3,7 @@ package io.github.resticdroid.work
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.PowerManager
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkManager
@@ -65,96 +66,104 @@ class BackupWorker(
         val log = RunLog.open(profileId)
         log.line("starting profile '${profile.name}' (${if (manual) "manual" else "scheduled"})")
 
-        setForeground(foregroundInfo(profile.name, applicationContext.getString(R.string.status_starting), null))
-
-        val engine = BackupEngine(
-            context = applicationContext,
-            restic = Restic.from(applicationContext),
-            secrets = SecretStore(applicationContext),
-        )
+        // Acquire WakeLock so CPU stays active during restic backup execution
+        val powerManager = applicationContext.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ResticDroid:BackupWakeLock").apply {
+            acquire(60 * 60 * 1000L) // 1-hour safety timeout
+        }
 
         var outcome: Result = Result.failure()
         var warnings = 0
 
         try {
+            safeSetForeground(foregroundInfo(profile.name, applicationContext.getString(R.string.status_starting), null))
+
+            val engine = BackupEngine(
+                context = applicationContext,
+                restic = Restic.from(applicationContext),
+                secrets = SecretStore(applicationContext),
+            )
+
             engine.run(config, profile, manual).collect { event ->
-            when (event) {
-                is RunEvent.Started -> {
-                    log.line("backing up: ${event.paths.joinToString(", ")}")
-                    report(profileId, Progress(0f, applicationContext.getString(R.string.status_scanning)))
-                }
+                when (event) {
+                    is RunEvent.Started -> {
+                        log.line("backing up: ${event.paths.joinToString(", ")}")
+                        report(profileId, Progress(0f, applicationContext.getString(R.string.status_scanning)))
+                    }
 
-                is RunEvent.Preparing -> {
-                    log.line(event.message)
-                    report(profileId, Progress(null, event.message))
-                    setForeground(foregroundInfo(profile.name, event.message, null))
-                }
+                    is RunEvent.Preparing -> {
+                        log.line(event.message)
+                        report(profileId, Progress(null, event.message))
+                        safeSetForeground(foregroundInfo(profile.name, event.message, null))
+                    }
 
-                is RunEvent.Progress -> {
-                    val percent = (event.fraction * 100).toInt()
-                    val text = buildString {
-                        if (event.filesDone != null && event.totalFiles != null) {
-                            append("${event.filesDone} / ${event.totalFiles} files")
-                        }
-                        if (event.bytesDone != null && event.totalBytes != null) {
-                            if (isNotEmpty()) append(" · ")
-                            append(Formats.bytes(event.bytesDone))
-                            append(" / ")
-                            append(Formats.bytes(event.totalBytes))
-                        }
-                        event.secondsRemaining?.takeIf { it > 0 }?.let {
-                            if (isNotEmpty()) append(" · ")
-                            append(Formats.duration(it))
-                            append(" left")
-                        }
-                    }.ifEmpty { applicationContext.getString(R.string.status_working) }
-
-                    report(profileId, Progress(event.fraction, text))
-                    setForeground(foregroundInfo(profile.name, text, percent))
-                }
-
-                is RunEvent.Warning -> {
-                    warnings++
-                    log.line("warning: ${event.message}")
-                }
-
-                is RunEvent.Finished -> {
-                    log.line(
-                        "done: snapshot ${event.snapshotId ?: "?"}, " +
-                            "${event.filesNew} new files, ${Formats.bytes(event.bytesAdded)} added" +
-                            if (event.warnings > 0) ", ${event.warnings} warnings" else ""
-                    )
-                    Notifications.result(
-                        applicationContext,
-                        applicationContext.getString(R.string.notification_done, profile.name),
-                        buildString {
-                            append(Formats.bytes(event.bytesAdded))
-                            append(" added")
-                            event.snapshotId?.let { append(" · snapshot ${it.take(8)}") }
-                            if (event.warnings > 0) {
-                                append("\n${event.warnings} files could not be read")
+                    is RunEvent.Progress -> {
+                        val percent = (event.fraction * 100).toInt()
+                        val text = buildString {
+                            if (event.filesDone != null && event.totalFiles != null) {
+                                append("${event.filesDone} / ${event.totalFiles} files")
                             }
-                        },
-                        failed = false,
-                    )
-                    Runs.changed(profile.destinationId)
-                    outcome = Result.success()
-                }
+                            if (event.bytesDone != null && event.totalBytes != null) {
+                                if (isNotEmpty()) append(" · ")
+                                append(Formats.bytes(event.bytesDone))
+                                append(" / ")
+                                append(Formats.bytes(event.totalBytes))
+                            }
+                            event.secondsRemaining?.takeIf { it > 0 }?.let {
+                                if (isNotEmpty()) append(" · ")
+                                append(Formats.duration(it))
+                                append(" left")
+                            }
+                        }.ifEmpty { applicationContext.getString(R.string.status_working) }
 
-                is RunEvent.Failed -> {
-                    log.line("failed: ${event.message}")
-                    Notifications.result(
-                        applicationContext,
-                        applicationContext.getString(R.string.notification_failed, profile.name),
-                        event.message,
-                        failed = true,
-                    )
-                    outcome = if (manual) Result.failure() else Result.retry()
+                        report(profileId, Progress(event.fraction, text))
+                        safeSetForeground(foregroundInfo(profile.name, text, percent))
+                    }
+
+                    is RunEvent.Warning -> {
+                        warnings++
+                        log.line("warning: ${event.message}")
+                    }
+
+                    is RunEvent.Finished -> {
+                        log.line(
+                            "done: snapshot ${event.snapshotId ?: "?"}, " +
+                                "${event.filesNew} new files, ${Formats.bytes(event.bytesAdded)} added" +
+                                if (event.warnings > 0) ", ${event.warnings} warnings" else ""
+                        )
+                        Notifications.result(
+                            applicationContext,
+                            applicationContext.getString(R.string.notification_done, profile.name),
+                            buildString {
+                                append(Formats.bytes(event.bytesAdded))
+                                append(" added")
+                                event.snapshotId?.let { append(" · snapshot ${it.take(8)}") }
+                                if (event.warnings > 0) {
+                                    append("\n${event.warnings} files could not be read")
+                                }
+                            },
+                            failed = false,
+                        )
+                        Runs.changed(profile.destinationId)
+                        outcome = Result.success()
+                    }
+
+                    is RunEvent.Failed -> {
+                        log.line("failed: ${event.message}")
+                        Notifications.result(
+                            applicationContext,
+                            applicationContext.getString(R.string.notification_failed, profile.name),
+                            event.message,
+                            failed = true,
+                        )
+                        outcome = if (manual) Result.failure() else Result.retry()
+                    }
                 }
             }
-        }
-
         } finally {
+            if (wakeLock.isHeld) {
+                wakeLock.release()
+            }
             progress.update { it - profileId }
         }
 
@@ -163,13 +172,21 @@ class BackupWorker(
         return outcome
     }
 
+    private suspend fun safeSetForeground(info: ForegroundInfo) {
+        try {
+            setForeground(info)
+        } catch (e: Exception) {
+            // Prevent background foreground-start restrictions from killing execution
+        }
+    }
+
     private fun foregroundInfo(profileName: String, text: String, percent: Int?): ForegroundInfo {
         val cancel = WorkManager.getInstance(applicationContext)
             .createCancelPendingIntent(id)
         val notification = Notifications.progress(applicationContext, profileName, text, percent, cancel)
 
         val notificationId = Notifications.progressId(id.toString())
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ForegroundInfo(
                 notificationId,
                 notification,

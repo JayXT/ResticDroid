@@ -25,6 +25,7 @@
     <!-- Requested only when a profile pins a Wi-Fi network: Android ties the
          connected SSID to location permission and offers nothing narrower, and
          since Android 12 both must be declared or the grant dialog is useless. -->
+	<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 

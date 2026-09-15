@@ -3,6 +3,7 @@ package io.github.resticdroid.work
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.PowerManager
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkManager
@@ -52,32 +53,50 @@ class PruneWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             return Result.failure()
         }
 
-        setForeground(foregroundInfo(destination.name))
-        val log = RunLog.open("prune-$destinationId")
-        log.line("pruning '${destination.name}'")
-
-        val opened = Repositories.openOrFail(
-            destination, SecretStore(applicationContext), ConfigPaths.credentialDir(applicationContext),
-        )
-        val repository = opened.getOrElse {
-            log.line("failed: ${it.message}")
-            Notifications.result(applicationContext, destination.name, it.message ?: "Failed", failed = true)
-            return Result.failure()
+        // Acquire WakeLock to prevent CPU sleep during long restic operations
+        val powerManager = applicationContext.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ResticDroid:PruneWakeLock").apply {
+            acquire(60 * 60 * 1000L) // 1-hour safety timeout
         }
 
-        val result = Restic.from(applicationContext).execute(repository, ResticCommand.prune())
-        RunLog.prune(config.settings.logRetention)
+        return try {
+            // Safely attempt foreground promotion without failing execution on restriction
+            try {
+                setForeground(foregroundInfo(destination.name))
+            } catch (e: Exception) {
+                // Background execution restricted starting foreground service; continue in background
+            }
 
-        Runs.changed(destinationId)
-        return if (result.isSuccess) {
-            log.line("done")
-            Notifications.result(applicationContext, destination.name, "Prune finished", failed = false)
-            Result.success()
-        } else {
-            val message = ProviderError.explain(destination, result.humanError())
-            log.line("failed: $message")
-            Notifications.result(applicationContext, destination.name, message, failed = true)
-            Result.failure()
+            val log = RunLog.open("prune-$destinationId")
+            log.line("pruning '${destination.name}'")
+
+            val opened = Repositories.openOrFail(
+                destination, SecretStore(applicationContext), ConfigPaths.credentialDir(applicationContext),
+            )
+            val repository = opened.getOrElse {
+                log.line("failed: ${it.message}")
+                Notifications.result(applicationContext, destination.name, it.message ?: "Failed", failed = true)
+                return Result.failure()
+            }
+
+            val result = Restic.from(applicationContext).execute(repository, ResticCommand.prune())
+            RunLog.prune(config.settings.logRetention)
+
+            Runs.changed(destinationId)
+            if (result.isSuccess) {
+                log.line("done")
+                Notifications.result(applicationContext, destination.name, "Prune finished", failed = false)
+                Result.success()
+            } else {
+                val message = ProviderError.explain(destination, result.humanError())
+                log.line("failed: $message")
+                Notifications.result(applicationContext, destination.name, message, failed = true)
+                Result.failure()
+            }
+        } finally {
+            if (wakeLock.isHeld) {
+                wakeLock.release()
+            }
         }
     }
 
@@ -95,7 +114,8 @@ class PruneWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             title = applicationContext.getString(R.string.notification_pruning, name),
         )
         val notificationId = Notifications.progressId(id.toString())
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        // DATA_SYNC service type available starting with Android 10 (API 29 / Q)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ForegroundInfo(notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
             ForegroundInfo(notificationId, notification)
