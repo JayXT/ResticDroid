@@ -34,11 +34,18 @@ Builds:
       https://github.com/JayXT/ResticDroid/releases/download/v%v/ResticDroid-v%v-armeabi-v7a.apk
     srclibs:
       - go@go1.26.7
+    scandelete:
+      - third_party/restic/cmd/restic/testdata
+      - third_party/restic/internal/backend/testdata
+      - third_party/restic/internal/repository/testdata
+      - third_party/restic/internal/checker/testdata
     build:
       - set -e
       - GO_VER=$(tr -d '[:space:]' < ../.go-version)
       - git -C $$go$$ checkout -f "go${GO_VER#go}"
-      - GOROOT_BOOTSTRAP=/usr/lib/go $$go$$/src/make.bash
+      - cd $$go$$/src
+      - GOROOT_BOOTSTRAP=/usr/lib/go ./make.bash
+      - cd -
       - NDK_VER=$(cat ../.ndk-version)
       - sdkmanager "ndk;$NDK_VER"
       - export ANDROID_NDK_HOME=$$SDK$$/ndk/$NDK_VER
@@ -65,11 +72,18 @@ Builds:
       https://github.com/JayXT/ResticDroid/releases/download/v%v/ResticDroid-v%v-arm64-v8a.apk
     srclibs:
       - go@go1.26.7
+    scandelete:
+      - third_party/restic/cmd/restic/testdata
+      - third_party/restic/internal/backend/testdata
+      - third_party/restic/internal/repository/testdata
+      - third_party/restic/internal/checker/testdata
     build:
       - set -e
       - GO_VER=$(tr -d '[:space:]' < ../.go-version)
       - git -C $$go$$ checkout -f "go${GO_VER#go}"
-      - GOROOT_BOOTSTRAP=/usr/lib/go $$go$$/src/make.bash
+      - cd $$go$$/src
+      - GOROOT_BOOTSTRAP=/usr/lib/go ./make.bash
+      - cd -
       - NDK_VER=$(cat ../.ndk-version)
       - sdkmanager "ndk;$NDK_VER"
       - export ANDROID_NDK_HOME=$$SDK$$/ndk/$NDK_VER
@@ -96,11 +110,18 @@ Builds:
       https://github.com/JayXT/ResticDroid/releases/download/v%v/ResticDroid-v%v-x86_64.apk
     srclibs:
       - go@go1.26.7
+    scandelete:
+      - third_party/restic/cmd/restic/testdata
+      - third_party/restic/internal/backend/testdata
+      - third_party/restic/internal/repository/testdata
+      - third_party/restic/internal/checker/testdata
     build:
       - set -e
       - GO_VER=$(tr -d '[:space:]' < ../.go-version)
       - git -C $$go$$ checkout -f "go${GO_VER#go}"
-      - GOROOT_BOOTSTRAP=/usr/lib/go $$go$$/src/make.bash
+      - cd $$go$$/src
+      - GOROOT_BOOTSTRAP=/usr/lib/go ./make.bash
+      - cd -
       - NDK_VER=$(cat ../.ndk-version)
       - sdkmanager "ndk;$NDK_VER"
       - export ANDROID_NDK_HOME=$$SDK$$/ndk/$NDK_VER
