@@ -1,6 +1,7 @@
 package io.github.resticdroid.restic
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.ProducerScope
@@ -50,6 +51,9 @@ public class Restic internal constructor(
                 },
                 launch(Dispatchers.IO) {
                     pump(process.errorStream) { line ->
+                        lockCleanupWarning(line)?.let {
+                            Log.w("ResticDroid", "restic ${command.args.first()}: lock cleanup failed")
+                        }
                         line.takeIf { it.isNotBlank() }?.let(ResticEvent::Diagnostic)
                     }
                 },
@@ -57,6 +61,7 @@ public class Restic internal constructor(
 
             launch(Dispatchers.IO) {
                 val code = runInterruptible { process.waitFor() }
+                Log.i("ResticDroid", "restic ${command.args.first()} exited: $process; code=$code")
                 pumps.forEach { it.join() }
                 send(ResticEvent.Finished(code))
                 close()
@@ -77,7 +82,12 @@ public class Restic internal constructor(
                 val out = async { process.inputStream.bufferedReader().use { it.readText() } }
                 val err = async { process.errorStream.bufferedReader().use { it.readText() } }
                 val code = runInterruptible { process.waitFor() }
-                ResticResult(code, out.await(), err.await())
+                Log.i("ResticDroid", "restic ${command.args.first()} exited: $process; code=$code")
+                ResticResult(code, out.await(), err.await()).also {
+                    if (lockCleanupWarning(it.stderr) != null) {
+                        Log.w("ResticDroid", "restic ${command.args.first()}: lock cleanup failed")
+                    }
+                }
             }
         } finally {
             terminate(process)
@@ -164,7 +174,10 @@ public class Restic internal constructor(
         }
 
         return try {
-            builder.start()
+            builder.start().also {
+                // Process descriptions may include the PID. Never log arguments or credentials.
+                Log.i("ResticDroid", "restic ${command.args.first()} started: $it")
+            }
         } catch (e: IOException) {
             throw ResticException("could not start restic: ${e.message}", e)
         }
@@ -268,3 +281,7 @@ public class ResticException(
     cause: Throwable? = null,
     public val exitCode: Int? = null,
 ) : Exception(message, cause)
+
+/** restic can report failed lock removal even when its exit status is zero. */
+public fun lockCleanupWarning(text: String): String? =
+    text.lineSequence().firstOrNull { it.contains("error while unlocking:") }?.trim()

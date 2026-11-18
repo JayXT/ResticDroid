@@ -3,7 +3,6 @@ package io.github.resticdroid.work
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
-import android.os.PowerManager
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkManager
@@ -15,7 +14,9 @@ import io.github.resticdroid.engine.ProviderError
 import io.github.resticdroid.engine.Repositories
 import io.github.resticdroid.restic.Restic
 import io.github.resticdroid.restic.ResticCommand
+import io.github.resticdroid.restic.lockCleanupWarning
 import io.github.resticdroid.secret.SecretStore
+import io.github.resticdroid.util.Redact
 
 /**
  * `restic prune`, on demand.
@@ -53,50 +54,43 @@ class PruneWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             return Result.failure()
         }
 
-        // Acquire WakeLock to prevent CPU sleep during long restic operations
-        val powerManager = applicationContext.getSystemService(Context.POWER_SERVICE) as PowerManager
-        val wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ResticDroid:PruneWakeLock").apply {
-            acquire(60 * 60 * 1000L) // 1-hour safety timeout
+        val log = RunLog.open("prune-$destinationId")
+        val promoted = startForeground(applicationContext, log) {
+            setForeground(foregroundInfo(destination.name))
+        }
+        if (!promoted) return Result.failure()
+        log.line("pruning '${destination.name}'")
+
+        val opened = Repositories.openOrFail(
+            destination, SecretStore(applicationContext), ConfigPaths.credentialDir(applicationContext),
+        )
+        val repository = opened.getOrElse {
+            log.line("failed: ${it.message}")
+            Notifications.result(applicationContext, destination.name, it.message ?: "Failed", failed = true)
+            return Result.failure()
         }
 
-        return try {
-            // Safely attempt foreground promotion without failing execution on restriction
-            try {
-                setForeground(foregroundInfo(destination.name))
-            } catch (e: Exception) {
-                // Background execution restricted starting foreground service; continue in background
-            }
+        val result = Restic.from(applicationContext).execute(repository, ResticCommand.prune())
+        val warning = lockCleanupWarning(result.stderr)?.let {
+            Redact.text(it, repository.env.values + repository.password)
+        }
+        warning?.let { log.line("warning: $it") }
+        RunLog.prune(config.settings.logRetention)
 
-            val log = RunLog.open("prune-$destinationId")
-            log.line("pruning '${destination.name}'")
-
-            val opened = Repositories.openOrFail(
-                destination, SecretStore(applicationContext), ConfigPaths.credentialDir(applicationContext),
+        Runs.changed(destinationId)
+        return if (result.isSuccess) {
+            log.line("done")
+            Notifications.result(
+                applicationContext, destination.name,
+                warning?.let { "Prune finished with a warning: $it" } ?: "Prune finished",
+                failed = false,
             )
-            val repository = opened.getOrElse {
-                log.line("failed: ${it.message}")
-                Notifications.result(applicationContext, destination.name, it.message ?: "Failed", failed = true)
-                return Result.failure()
-            }
-
-            val result = Restic.from(applicationContext).execute(repository, ResticCommand.prune())
-            RunLog.prune(config.settings.logRetention)
-
-            Runs.changed(destinationId)
-            if (result.isSuccess) {
-                log.line("done")
-                Notifications.result(applicationContext, destination.name, "Prune finished", failed = false)
-                Result.success()
-            } else {
-                val message = ProviderError.explain(destination, result.humanError())
-                log.line("failed: $message")
-                Notifications.result(applicationContext, destination.name, message, failed = true)
-                Result.failure()
-            }
-        } finally {
-            if (wakeLock.isHeld) {
-                wakeLock.release()
-            }
+            Result.success()
+        } else {
+            val message = ProviderError.explain(destination, result.humanError())
+            log.line("failed: $message")
+            Notifications.result(applicationContext, destination.name, message, failed = true)
+            Result.failure()
         }
     }
 

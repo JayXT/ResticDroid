@@ -3,7 +3,6 @@ package io.github.resticdroid.work
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
-import android.os.PowerManager
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkManager
@@ -66,17 +65,14 @@ class BackupWorker(
         val log = RunLog.open(profileId)
         log.line("starting profile '${profile.name}' (${if (manual) "manual" else "scheduled"})")
 
-        // Acquire WakeLock so CPU stays active during restic backup execution
-        val powerManager = applicationContext.getSystemService(Context.POWER_SERVICE) as PowerManager
-        val wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ResticDroid:BackupWakeLock").apply {
-            acquire(60 * 60 * 1000L) // 1-hour safety timeout
-        }
-
         var outcome: Result = Result.failure()
         var warnings = 0
 
         try {
-            safeSetForeground(foregroundInfo(profile.name, applicationContext.getString(R.string.status_starting), null))
+            val promoted = startForeground(applicationContext, log) {
+                setForeground(foregroundInfo(profile.name, applicationContext.getString(R.string.status_starting), null))
+            }
+            if (!promoted) return if (manual) Result.failure() else Result.retry()
 
             val engine = BackupEngine(
                 context = applicationContext,
@@ -94,7 +90,7 @@ class BackupWorker(
                     is RunEvent.Preparing -> {
                         log.line(event.message)
                         report(profileId, Progress(null, event.message))
-                        safeSetForeground(foregroundInfo(profile.name, event.message, null))
+                        setForeground(foregroundInfo(profile.name, event.message, null))
                     }
 
                     is RunEvent.Progress -> {
@@ -117,7 +113,7 @@ class BackupWorker(
                         }.ifEmpty { applicationContext.getString(R.string.status_working) }
 
                         report(profileId, Progress(event.fraction, text))
-                        safeSetForeground(foregroundInfo(profile.name, text, percent))
+                        setForeground(foregroundInfo(profile.name, text, percent))
                     }
 
                     is RunEvent.Warning -> {
@@ -126,10 +122,11 @@ class BackupWorker(
                     }
 
                     is RunEvent.Finished -> {
+                        val warningCount = maxOf(warnings, event.warnings)
                         log.line(
                             "done: snapshot ${event.snapshotId ?: "?"}, " +
                                 "${event.filesNew} new files, ${Formats.bytes(event.bytesAdded)} added" +
-                                if (event.warnings > 0) ", ${event.warnings} warnings" else ""
+                                if (warningCount > 0) ", $warningCount warnings" else ""
                         )
                         Notifications.result(
                             applicationContext,
@@ -138,8 +135,8 @@ class BackupWorker(
                                 append(Formats.bytes(event.bytesAdded))
                                 append(" added")
                                 event.snapshotId?.let { append(" · snapshot ${it.take(8)}") }
-                                if (event.warnings > 0) {
-                                    append("\n${event.warnings} files could not be read")
+                                if (warningCount > 0) {
+                                    append("\n$warningCount warnings; see the run log")
                                 }
                             },
                             failed = false,
@@ -161,23 +158,12 @@ class BackupWorker(
                 }
             }
         } finally {
-            if (wakeLock.isHeld) {
-                wakeLock.release()
-            }
             progress.update { it - profileId }
         }
 
         RunLog.prune(config.settings.logRetention)
         log.line("log kept at ${log.path()}")
         return outcome
-    }
-
-    private suspend fun safeSetForeground(info: ForegroundInfo) {
-        try {
-            setForeground(info)
-        } catch (e: Exception) {
-            // Prevent background foreground-start restrictions from killing execution
-        }
     }
 
     private fun foregroundInfo(profileName: String, text: String, percent: Int?): ForegroundInfo {

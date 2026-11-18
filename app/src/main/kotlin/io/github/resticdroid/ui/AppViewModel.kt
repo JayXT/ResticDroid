@@ -17,14 +17,17 @@ import io.github.resticdroid.engine.ProviderError
 import io.github.resticdroid.engine.Repositories
 import io.github.resticdroid.engine.RestoreReport
 import io.github.resticdroid.restic.ResticCommand
-import io.github.resticdroid.restic.ResticEvent
 import io.github.resticdroid.restic.ResticExit
 import io.github.resticdroid.restic.ResticSnapshot
+import io.github.resticdroid.restic.lockCleanupWarning
 import io.github.resticdroid.secret.BiometricGate
 import io.github.resticdroid.secret.SecretStore
+import io.github.resticdroid.util.Redact
 import io.github.resticdroid.work.BackupWorker
 import io.github.resticdroid.work.Runs
+import io.github.resticdroid.work.RunLog
 import io.github.resticdroid.work.Scheduler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,12 +37,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-private object EnoughFiles : RuntimeException(null, null, false, false)
-
-data class SnapshotFile(val path: String, val size: Long, val directory: Boolean)
-
-data class FileListing(val files: List<SnapshotFile>, val truncated: Boolean)
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val app get() = getApplication<ResticDroidApp>()
@@ -323,12 +320,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * below can fail this way, and they should all say the same thing when it
      * happens.
      */
-    private fun <T> Result<T>.explained(destinationId: String): Result<T> = recoverCatching { cause ->
-        val destination = config.value.destination(destinationId) ?: throw cause
-        val message = cause.message.orEmpty()
-        val better = ProviderError.explain(destination, message)
-        if (better == message) throw cause
-        throw IllegalStateException(better, cause)
+    private fun <T> Result<T>.explained(destinationId: String): Result<T> {
+        exceptionOrNull()?.let { if (it is CancellationException) throw it }
+        return recoverCatching { cause ->
+            val destination = config.value.destination(destinationId) ?: throw cause
+            val message = cause.message.orEmpty()
+            val better = ProviderError.explain(destination, message)
+            if (better == message) throw cause
+            throw IllegalStateException(better, cause)
+        }
     }
 
     /** Anything that changes what a listing would say drops the cached one. */
@@ -343,63 +343,46 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ?.getOrThrow()
             ?: error("destination not found")
 
-    /**
-     * The files in a snapshot, capped.
-     *
-     * A snapshot of a phone's storage can hold hundreds of thousands of nodes,
-     * and nobody scrolls that far. Reaching the cap throws out of the collector,
-     * which cancels the flow and kills restic - reading the rest and discarding
-     * it would cost the same metered bytes as showing it.
-     */
+    /** Keep a small display list, but drain restic so it can release its lock. */
     suspend fun files(
         destinationId: String,
         snapshotId: String,
-        limit: Int = FILE_LIMIT,
     ): Result<FileListing> = withContext(Dispatchers.IO) {
         runCatching {
             val repo = repository(destinationId)
-            val out = mutableListOf<SnapshotFile>()
-            var truncated = false
-            var exit: Int? = null
-            var problem: String? = null
-
+            val log = RunLog.open("files-$destinationId")
+            val secrets = repo.env.values + repo.password
+            fun safe(text: String) = Redact.text(text, secrets)
+            log.line("listing snapshot $snapshotId")
             try {
-                app.restic.stream(repo, ResticCommand.ls(snapshotId)).collect { event ->
-                    when (event) {
-                        is ResticEvent.Json -> {
-                            val o = event.obj
-                            if (!o.has("path")) return@collect
-                            if (out.size >= limit) { truncated = true; throw EnoughFiles }
-                            out += SnapshotFile(
-                                path = o.optString("path"),
-                                size = o.optLong("size"),
-                                directory = o.optString("type") == "dir",
-                            )
-                        }
-                        is ResticEvent.ItemError -> problem = problem ?: event.message
-                        is ResticEvent.Finished -> exit = event.exitCode
-                        else -> Unit
-                    }
-                }
-            } catch (_: EnoughFiles) {
-                // The cap, not a failure.
+                val listing = app.restic.stream(repo, ResticCommand.ls(snapshotId))
+                    .readFiles { log.line(safe(it)) }
+                listing.copy(warning = listing.warning?.let(::safe))
+                    .also { lastFiles = snapshotId to it }
+            } catch (e: CancellationException) {
+                log.line("listing cancelled")
+                throw e
+            } catch (e: Exception) {
+                log.line("listing failed: ${safe(e.message.orEmpty())}")
+                throw IllegalStateException(safe(e.message ?: "File listing failed"), e)
+            } finally {
+                RunLog.prune(config.value.settings.logRetention)
             }
-
-            val code = exit
-            if (!truncated && code != null && !ResticExit.isSuccess(code)) {
-                error(problem ?: ResticExit.describe(code))
-            }
-            FileListing(out, truncated).also { lastFiles = snapshotId to it }
         }.explained(destinationId)
     }
 
     suspend fun forgetSnapshot(destinationId: String, snapshotId: String): Result<String> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val result = app.restic.execute(repository(destinationId), ResticCommand.forget(listOf(snapshotId)))
+                val repo = repository(destinationId)
+                val result = app.restic.execute(repo, ResticCommand.forget(listOf(snapshotId)))
                 if (!result.isSuccess) error(result.humanError())
                 stale(destinationId)
-                "Snapshot forgotten. Prune the repository to reclaim the space."
+                val warning = lockCleanupWarning(result.stderr)?.let {
+                    Redact.text(it, repo.env.values + repo.password)
+                }
+                warning?.let { "Snapshot forgotten, but cleanup failed: $it" }
+                    ?: "Snapshot forgotten. Prune the repository to reclaim the space."
             }.explained(destinationId)
         }
 
@@ -468,7 +451,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
-        private const val FILE_LIMIT = 5_000
         private const val DIFF_LINE_LIMIT = 2_000
 
         const val MIN_PASSWORD: Int = 8

@@ -30,17 +30,7 @@ object Scheduler {
     private fun manualTag(profileId: String) = MANUAL_TAG_PREFIX + profileId
     private fun periodicTag(profileId: String) = PERIODIC_TAG_PREFIX + profileId
 
-    // Work is re-enqueued on every config change; without a fingerprint to
-    // compare against, ExistingPeriodicWorkPolicy.UPDATE resets the interval
-    // and a frequently-edited profile would never actually run.
-    private fun fingerprint(profile: Profile): String {
-        val c = profile.conditions
-        return "fp:" + listOf(
-            profile.schedule.serialize(),
-            c.requireCharging, c.requireUnmetered, c.requireIdle,
-            c.minBatteryPercent, c.wifiSsid.sorted().joinToString(","),
-        ).joinToString("|").hashCode().toString(16)
-    }
+    private const val SCHEDULE_TAG_PREFIX = "schedule:"
 
     fun workName(profileId: String): String = PERIODIC_PREFIX + profileId
 
@@ -51,32 +41,47 @@ object Scheduler {
         config.profiles.filterNot { it in wanted }.forEach {
             manager.cancelUniqueWork(workName(it.id))
         }
-        wanted.forEach { schedule(context, manager, it) }
+        wanted.forEach { schedule(manager, it) }
     }
 
-    private fun alreadyScheduled(manager: WorkManager, profile: Profile): Boolean = runCatching {
-        manager.getWorkInfosForUniqueWork(workName(profile.id)).get()
-            .any { info -> !info.state.isFinished && fingerprint(profile) in info.tags }
-    }.getOrDefault(false)
+    // Constraint edits must not cancel a running backup. Only an explicit
+    // schedule change resets its timing. Old requests without a tag migrate
+    // through UPDATE, preserving their current run and enqueue time.
+    internal fun updatePolicy(tags: Set<String>, schedule: Schedule): ExistingPeriodicWorkPolicy {
+        val previous = tags.firstOrNull { it.startsWith(SCHEDULE_TAG_PREFIX) }
+        return if (previous != null && previous != SCHEDULE_TAG_PREFIX + schedule.serialize()) {
+            ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE
+        } else {
+            ExistingPeriodicWorkPolicy.UPDATE
+        }
+    }
 
-    private fun schedule(context: Context, manager: WorkManager, profile: Profile) {
+    private fun schedule(manager: WorkManager, profile: Profile) {
         val interval = when (val s = profile.schedule) {
             is Schedule.Interval -> s.hours.toLong()
             is Schedule.Daily -> 24L
             Schedule.Manual -> return
         }
 
-        if (alreadyScheduled(manager, profile)) return
+        val existing = manager.getWorkInfosForUniqueWork(workName(profile.id)).get()
+            .firstOrNull { !it.state.isFinished }
+        val policy = updatePolicy(existing?.tags.orEmpty(), profile.schedule)
 
         val request = PeriodicWorkRequestBuilder<BackupWorker>(interval, TimeUnit.HOURS)
             .setConstraints(constraints(profile.conditions))
             .setInputData(workDataOf(BackupWorker.KEY_PROFILE_ID to profile.id))
             .addTag(TAG_ALL)
             .addTag(periodicTag(profile.id))
-            .addTag(fingerprint(profile))
+            .addTag(SCHEDULE_TAG_PREFIX + profile.schedule.serialize())
             .apply {
                 (profile.schedule as? Schedule.Daily)?.let {
-                    setInitialDelay(delayUntil(it.hour, it.minute), TimeUnit.MILLISECONDS)
+                    // UPDATE keeps the old enqueue time, so keep its delay too.
+                    val delay = if (existing != null && policy == ExistingPeriodicWorkPolicy.UPDATE) {
+                        existing.initialDelayMillis
+                    } else {
+                        delayUntil(it.hour, it.minute)
+                    }
+                    setInitialDelay(delay, TimeUnit.MILLISECONDS)
                 }
                 setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, TimeUnit.MINUTES)
             }
@@ -84,7 +89,7 @@ object Scheduler {
 
         manager.enqueueUniquePeriodicWork(
             workName(profile.id),
-            ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
+            policy,
             request,
         )
     }

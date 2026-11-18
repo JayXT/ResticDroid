@@ -130,7 +130,7 @@ fun SnapshotScreen(
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { choosingCompare = true }) { Text("Compare") }
-                    OutlinedButton(onClick = { confirmForget = true }) { Text("Forget") }
+                    OutlinedButton(enabled = !loadingFiles, onClick = { confirmForget = true }) { Text("Forget") }
                 }
 
                 SectionHeader("Files")
@@ -139,14 +139,21 @@ fun SnapshotScreen(
                         onClick = {
                             loadingFiles = true
                             scope.launch {
-                                model.files(destinationId, snap.id)
-                                    .onSuccess { (list, cut) -> files = list; truncated = cut }
-                                    .onFailure { error = it.message; model.say(it.message) }
-                                loadingFiles = false
+                                try {
+                                    model.files(destinationId, snap.id)
+                                        .onSuccess { listing ->
+                                            files = listing.files
+                                            truncated = listing.truncated
+                                            listing.warning?.let { model.say(it) }
+                                        }
+                                        .onFailure { error = it.message; model.say(it.message) }
+                                } finally {
+                                    loadingFiles = false
+                                }
                             }
                         },
                     ) { Text("List files") }
-                    Hint("Read from the repository on demand, so it is not paid for until asked.")
+                    Hint("Shows up to 1,000 entries.")
                 }
                 if (loadingFiles) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -179,7 +186,7 @@ fun SnapshotScreen(
             }
 
             if (truncated) {
-                item { Hint("Only the first files are listed. Restore to see everything.") }
+                item { Hint("Only the first 1,000 entries are shown. Restore to see everything.") }
             }
         }
     }

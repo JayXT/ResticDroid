@@ -10,8 +10,10 @@ import io.github.resticdroid.restic.ResticCommand
 import io.github.resticdroid.restic.ResticEvent
 import io.github.resticdroid.restic.ResticExit
 import io.github.resticdroid.restic.ResticRepository
+import io.github.resticdroid.restic.lockCleanupWarning
 import io.github.resticdroid.secret.SecretStore
 import io.github.resticdroid.util.Redact
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
@@ -186,7 +188,10 @@ class BackupEngine(
                     warnings++
                     emit(RunEvent.Warning(safe(listOfNotNull(event.item, event.message).joinToString(": "))))
                 }
-                is ResticEvent.Diagnostic -> lastDiagnostic = safe(event.line)
+                is ResticEvent.Diagnostic -> {
+                    lastDiagnostic = safe(event.line)
+                    lockCleanupWarning(event.line)?.let { emit(RunEvent.Warning(safe(it))) }
+                }
                 is ResticEvent.Finished -> {
                     if (ResticExit.isSuccess(event.exitCode)) {
                         if (!profile.retention.isEmpty()) {
@@ -239,7 +244,13 @@ class BackupEngine(
                 ),
             )
         }
+        result.exceptionOrNull()?.let { if (it is CancellationException) throw it }
         val outcome = result.getOrNull()
+        outcome?.let {
+            lockCleanupWarning(it.stderr)?.let { warning ->
+                emit(RunEvent.Warning(Redact.text(warning, repository.env.values + repository.password)))
+            }
+        }
         when {
             outcome == null -> emit(RunEvent.Warning("retention failed: ${result.exceptionOrNull()?.message}"))
             !outcome.isSuccess -> emit(RunEvent.Warning("retention failed: ${outcome.humanError()}"))

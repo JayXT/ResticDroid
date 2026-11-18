@@ -1,5 +1,7 @@
 package io.github.resticdroid.work
 
+import androidx.work.ExistingPeriodicWorkPolicy
+import io.github.resticdroid.config.Schedule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -7,6 +9,31 @@ import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
 class SchedulerTest {
+    @Test
+    fun `unchanged schedule updates without cancelling work`() {
+        val schedule = Schedule.Daily(3, 0)
+        assertEquals(
+            ExistingPeriodicWorkPolicy.UPDATE,
+            Scheduler.updatePolicy(setOf("schedule:" + schedule.serialize()), schedule),
+        )
+    }
+
+    @Test
+    fun `an explicit time change resets the schedule`() {
+        assertEquals(
+            ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
+            Scheduler.updatePolicy(setOf("schedule:" + Schedule.Daily(3, 0).serialize()), Schedule.Daily(4, 0)),
+        )
+    }
+
+    @Test
+    fun `old fingerprint-only work migrates without cancellation`() {
+        assertEquals(
+            ExistingPeriodicWorkPolicy.UPDATE,
+            Scheduler.updatePolicy(setOf("fp:1234"), Schedule.Daily(3, 0)),
+        )
+    }
+
     private fun at(hour: Int, minute: Int): Long = Calendar.getInstance().apply {
         set(Calendar.YEAR, 2026)
         set(Calendar.MONTH, Calendar.AUGUST)

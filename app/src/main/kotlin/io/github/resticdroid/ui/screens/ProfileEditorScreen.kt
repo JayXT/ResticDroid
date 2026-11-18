@@ -1,5 +1,11 @@
 package io.github.resticdroid.ui.screens
 
+import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -36,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -273,7 +280,8 @@ fun ProfileEditorScreen(
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 1,
                 )
-                Hint("One per line; empty means any network. Needs the location permission.")
+                Hint("One per line, case-sensitive; empty means any network.")
+                if (conditions.wifiSsid.isNotEmpty()) WifiLocationPermission()
             }
 
             SectionHeader("Keep snapshots")
@@ -352,6 +360,32 @@ fun ProfileEditorScreen(
 }
 
 @Composable
+private fun WifiLocationPermission() {
+    val context = LocalContext.current
+    val request = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { }
+
+    Hint("Android treats Wi-Fi names as location data. Grant precise location, then open " +
+        "App permissions and choose Location → Allow all the time (Android 10+). " +
+        "Device Location must also be on. Without access, scheduled backups wait.")
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = {
+            request.launch(arrayOf(
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_FINE_LOCATION,
+            ))
+        }) { Text("Grant location") }
+        TextButton(onClick = {
+            context.startActivity(Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:${context.packageName}"),
+            ))
+        }) { Text("App permissions") }
+    }
+}
+
+@Composable
 private fun ScheduleEditor(schedule: Schedule, onChange: (Schedule) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         FilterChip(
@@ -397,7 +431,8 @@ private fun ScheduleEditor(schedule: Schedule, onChange: (Schedule) -> Unit) {
                     modifier = Modifier.weight(1f),
                 )
             }
-            Hint("Android batches background work, so a run starts near this time, not on it.")
+            Hint("First run near this time, then about every 24 hours. Android may delay it. " +
+                "After a time-zone or daylight-saving change, change the scheduled time and save to reset it.")
         }
 
         is Schedule.Interval -> {

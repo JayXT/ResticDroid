@@ -1,12 +1,17 @@
 package io.github.resticdroid.work
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
+import android.os.Build
+import androidx.core.location.LocationManagerCompat
 import io.github.resticdroid.config.Conditions
 
 object DeviceConditions {
@@ -26,9 +31,18 @@ object DeviceConditions {
         }
 
         if (conditions.wifiSsid.isNotEmpty()) {
-            val current = currentSsid(context)
-                ?: return Verdict.Unsatisfied("not connected to Wi-Fi")
-            if (conditions.wifiSsid.none { it.equals(current, ignoreCase = true) }) {
+            ssidAccessProblem(context)?.let { return Verdict.Unsatisfied(it) }
+            val cm = context.getSystemService(ConnectivityManager::class.java)
+            val caps = cm?.getNetworkCapabilities(cm.activeNetwork)
+            if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) != true) {
+                return Verdict.Unsatisfied("not connected to Wi-Fi")
+            }
+            val current = try {
+                currentSsid(context)
+            } catch (_: SecurityException) {
+                return Verdict.Unsatisfied("Wi-Fi access denied; check the app's location permissions")
+            } ?: return Verdict.Unsatisfied("Wi-Fi name unavailable; check location permissions and Location settings")
+            if (current !in conditions.wifiSsid) {
                 return Verdict.Unsatisfied("Wi-Fi network '$current' is not in the allowed list")
             }
         }
@@ -53,11 +67,23 @@ object DeviceConditions {
         return manager?.isCharging ?: false
     }
 
-    private fun currentSsid(context: Context): String? {
-        val cm = context.getSystemService(ConnectivityManager::class.java) ?: return null
-        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return null
-        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
+    private fun ssidAccessProblem(context: Context): String? {
+        if (context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return "Wi-Fi name requires precise location permission"
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            context.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return "Wi-Fi name requires location permission set to Allow all the time"
+        }
+        val location = context.getSystemService(LocationManager::class.java)
+        if (location == null || !LocationManagerCompat.isLocationEnabled(location)) {
+            return "turn on Location to read the Wi-Fi name"
+        }
+        return null
+    }
 
+    private fun currentSsid(context: Context): String? {
         @Suppress("DEPRECATION")
         val info = context.applicationContext
             .getSystemService(WifiManager::class.java)
