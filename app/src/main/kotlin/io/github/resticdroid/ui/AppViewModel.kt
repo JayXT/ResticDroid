@@ -14,6 +14,7 @@ import io.github.resticdroid.config.Destination
 import io.github.resticdroid.config.Profile
 import io.github.resticdroid.config.Settings
 import io.github.resticdroid.engine.ProviderError
+import io.github.resticdroid.engine.RepositoryWork
 import io.github.resticdroid.engine.Repositories
 import io.github.resticdroid.engine.RestoreReport
 import io.github.resticdroid.restic.ResticCommand
@@ -36,7 +37,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val app get() = getApplication<ResticDroidApp>()
@@ -260,7 +260,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         destination: Destination,
         password: String,
         credentials: Map<String, String>,
-    ): Result<String> = withContext(Dispatchers.IO) {
+    ): Result<String> = RepositoryWork.run {
         runCatching {
             val repository = Repositories.openWith(
                 destination, password, app.secrets,
@@ -273,14 +273,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     error("No repository at that location yet. Use \"Create repository\" instead.")
                 else -> error(ProviderError.explain(destination, result.humanError()))
             }
-        }
+        }.onFailure { if (it is CancellationException) throw it }
     }
 
     suspend fun createRepository(
         destination: Destination,
         password: String,
         credentials: Map<String, String>,
-    ): Result<String> = withContext(Dispatchers.IO) {
+    ): Result<String> = RepositoryWork.run {
         runCatching {
             val effective = Repositories.password(destination, password, app.secrets)
             if (effective.length < MIN_PASSWORD) {
@@ -296,7 +296,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 error(ProviderError.explain(destination, result.humanError()))
             }
-        }
+        }.onFailure { if (it is CancellationException) throw it }
     }
 
     suspend fun snapshots(
@@ -304,7 +304,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         refresh: Boolean = false,
     ): Result<List<ResticSnapshot>> {
         if (!refresh) listings[destinationId]?.let { return Result.success(it) }
-        return withContext(Dispatchers.IO) {
+        return RepositoryWork.run {
             runCatching {
                 app.restic.executeJson(repository(destinationId), ResticCommand.snapshots())
                     .map(ResticSnapshot::from)
@@ -347,7 +347,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun files(
         destinationId: String,
         snapshotId: String,
-    ): Result<FileListing> = withContext(Dispatchers.IO) {
+    ): Result<FileListing> = RepositoryWork.run {
         runCatching {
             val repo = repository(destinationId)
             val log = RunLog.open("files-$destinationId")
@@ -372,7 +372,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     suspend fun forgetSnapshot(destinationId: String, snapshotId: String): Result<String> =
-        withContext(Dispatchers.IO) {
+        RepositoryWork.run {
             runCatching {
                 val repo = repository(destinationId)
                 val result = app.restic.execute(repo, ResticCommand.forget(listOf(snapshotId)))
@@ -387,17 +387,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
     suspend fun diff(destinationId: String, from: String, to: String): Result<String> =
-        withContext(Dispatchers.IO) {
+        RepositoryWork.run {
             runCatching {
-                val result = app.restic.execute(repository(destinationId), ResticCommand.diff(from, to))
-                if (!result.isSuccess) error(result.humanError())
-                val lines = result.stdout.trim().lines()
-                if (lines.size <= DIFF_LINE_LIMIT) {
-                    lines.joinToString("\n").ifEmpty { "No differences." }
-                } else {
-                    lines.take(DIFF_LINE_LIMIT).joinToString("\n") +
-                        "\n\n… and ${lines.size - DIFF_LINE_LIMIT} more lines."
-                }
+                val repo = repository(destinationId)
+                Redact.text(app.restic.stream(repo, ResticCommand.diff(from, to)).readDiff(), repo.env.values + repo.password)
             }.explained(destinationId)
         }
 
@@ -415,7 +408,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         destinationId: String,
         snapshotId: String,
         target: String,
-    ): Result<String> = withContext(Dispatchers.IO) {
+    ): Result<String> = RepositoryWork.run {
         runCatching {
             val destination = config.value.destination(destinationId) ?: error("destination not found")
             val repository = Repositories.openOrFail(
@@ -451,8 +444,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
-        private const val DIFF_LINE_LIMIT = 2_000
-
         const val MIN_PASSWORD: Int = 8
 
         fun hasStorageAccess(context: Context): Boolean =

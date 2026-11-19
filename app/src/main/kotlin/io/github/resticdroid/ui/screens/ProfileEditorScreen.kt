@@ -61,6 +61,7 @@ import io.github.resticdroid.ui.components.ConfirmDialog
 import io.github.resticdroid.ui.components.Hint
 import io.github.resticdroid.ui.components.InfoCard
 import io.github.resticdroid.ui.components.Picker
+import io.github.resticdroid.ui.components.PathPicker
 import io.github.resticdroid.ui.components.SectionHeader
 import io.github.resticdroid.ui.components.SwitchRow
 
@@ -94,6 +95,7 @@ fun ProfileEditorScreen(
     var retention by remember(profileId) { mutableStateOf(existing?.retention ?: RetentionPolicy.Default) }
     var groupByTags by remember(profileId) { mutableStateOf(existing?.groupByTags ?: false) }
     var confirmDelete by remember(profileId) { mutableStateOf(false) }
+    var pickingExclusions by remember(profileId) { mutableStateOf<Boolean?>(null) }
 
     fun currentPaths() = pathsText.lines().map(String::trim).filter(String::isNotEmpty)
 
@@ -149,11 +151,12 @@ fun ProfileEditorScreen(
             OutlinedTextField(
                 value = pathsText,
                 onValueChange = { pathsText = it },
-                label = { Text("Folders, one per line") },
+                label = { Text("Files or folders, one per line") },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
             )
             Hint("Absolute paths. /storage/emulated/0 is internal shared storage.")
+            TextButton(onClick = { pickingExclusions = false }) { Text("Browse") }
             if (includeApps && currentPaths().isEmpty()) {
                 Hint("APKs are gathered when the backup runs, so no path is listed here.")
             }
@@ -183,6 +186,7 @@ fun ProfileEditorScreen(
                 minLines = 1,
             )
             Hint("A bare name is looked up in ResticDroid/exclude.d; an absolute path is used as written.")
+            TextButton(onClick = { pickingExclusions = true }) { Text("Browse") }
 
             OutlinedTextField(
                 value = tagsText,
@@ -341,6 +345,19 @@ fun ProfileEditorScreen(
             }
             Spacer(Modifier.height(32.dp))
         }
+    }
+
+    pickingExclusions?.let { exclusions ->
+        PathPicker(
+            filesOnly = exclusions,
+            onSelect = { path ->
+                val previous = if (exclusions) excludeFilesText else pathsText
+                val updated = (previous.lines().filter { it.isNotBlank() } + path).distinct().joinToString("\n")
+                if (exclusions) excludeFilesText = updated else pathsText = updated
+                pickingExclusions = null
+            },
+            onDismiss = { pickingExclusions = null },
+        )
     }
 
     if (confirmDelete && existing != null) {

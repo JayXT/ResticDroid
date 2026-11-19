@@ -3,23 +3,25 @@ package io.github.resticdroid.engine
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import java.io.File
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 class ApkExporter(private val context: Context) {
-    data class Exported(val directory: File, val count: Int, val bytes: Long)
+    data class Exported(val directory: File, val count: Int)
 
-    fun export(into: File): Exported {
-        into.mkdirs()
-        into.listFiles()?.forEach { it.deleteRecursively() }
+    suspend fun export(into: File): Exported {
+        check(into.deleteRecursively()) { "Cannot clear APK staging directory" }
+        check(into.mkdirs()) { "Cannot create APK staging directory" }
 
         var count = 0
-        var bytes = 0L
 
         for (app in userApplications()) {
+            currentCoroutineContext().ensureActive()
             val sources = buildList {
                 app.sourceDir?.let { add(File(it)) }
                 app.splitSourceDirs?.forEach { add(File(it)) }
-            }.filter { it.isFile && it.canRead() }
-            if (sources.isEmpty()) continue
+            }
+            check(sources.isNotEmpty()) { "No APK found for ${app.packageName}" }
 
             val label = runCatching {
                 context.packageManager.getApplicationLabel(app).toString()
@@ -37,20 +39,19 @@ class ApkExporter(private val context: Context) {
             sources.forEachIndexed { index, source ->
                 val name = if (index == 0) "base.apk" else sanitise(source.name)
                 val destination = File(target, name)
-                runCatching { source.copyTo(destination, overwrite = true) }
-                    .onSuccess { bytes += it.length() }
+                currentCoroutineContext().ensureActive()
+                source.copyTo(destination, overwrite = true)
             }
             count++
         }
-        return Exported(into, count, bytes)
+        return Exported(into, count)
     }
 
-    private fun userApplications(): List<ApplicationInfo> = runCatching {
+    private fun userApplications(): List<ApplicationInfo> =
         context.packageManager.getInstalledApplications(0)
             .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 }
             .filter { it.packageName != context.packageName }
             .sortedBy { it.packageName }
-    }.getOrDefault(emptyList())
 
     private fun versionOf(packageName: String): String = runCatching {
         @Suppress("DEPRECATION")

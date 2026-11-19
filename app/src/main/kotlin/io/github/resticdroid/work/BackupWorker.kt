@@ -9,11 +9,13 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.github.resticdroid.R
 import io.github.resticdroid.config.ConfigStore
+import io.github.resticdroid.engine.RepositoryWork
 import io.github.resticdroid.engine.BackupEngine
 import io.github.resticdroid.engine.RunEvent
 import io.github.resticdroid.restic.Restic
 import io.github.resticdroid.secret.SecretStore
 import io.github.resticdroid.util.Formats
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 
@@ -55,6 +57,7 @@ class BackupWorker(
             when (val verdict = DeviceConditions.check(applicationContext, profile.conditions)) {
                 is DeviceConditions.Verdict.Unsatisfied -> {
                     RunLog.open(profileId).line("skipped: ${verdict.reason}")
+                    RunLog.prune(config.settings.logRetention)
                     return Result.retry()
                 }
                 DeviceConditions.Verdict.Satisfied -> Unit
@@ -74,95 +77,107 @@ class BackupWorker(
             }
             if (!promoted) return if (manual) Result.failure() else Result.retry()
 
-            val engine = BackupEngine(
-                context = applicationContext,
-                restic = Restic.from(applicationContext),
-                secrets = SecretStore(applicationContext),
-            )
+            RepositoryWork.run {
+                try {
+                    report(profileId, Progress(null, "Starting"))
+                    val engine = BackupEngine(
+                        context = applicationContext,
+                        restic = Restic.from(applicationContext),
+                        secrets = SecretStore(applicationContext),
+                    )
 
-            engine.run(config, profile, manual).collect { event ->
-                when (event) {
-                    is RunEvent.Started -> {
-                        log.line("backing up: ${event.paths.joinToString(", ")}")
-                        report(profileId, Progress(0f, applicationContext.getString(R.string.status_scanning)))
-                    }
-
-                    is RunEvent.Preparing -> {
-                        log.line(event.message)
-                        report(profileId, Progress(null, event.message))
-                        setForeground(foregroundInfo(profile.name, event.message, null))
-                    }
-
-                    is RunEvent.Progress -> {
-                        val percent = (event.fraction * 100).toInt()
-                        val text = buildString {
-                            if (event.filesDone != null && event.totalFiles != null) {
-                                append("${event.filesDone} / ${event.totalFiles} files")
+                    engine.run(config, profile, manual).collect { event ->
+                        when (event) {
+                            is RunEvent.Started -> {
+                                log.line("backing up: ${event.paths.joinToString(", ")}")
+                                report(profileId, Progress(0f, applicationContext.getString(R.string.status_scanning)))
                             }
-                            if (event.bytesDone != null && event.totalBytes != null) {
-                                if (isNotEmpty()) append(" · ")
-                                append(Formats.bytes(event.bytesDone))
-                                append(" / ")
-                                append(Formats.bytes(event.totalBytes))
+
+                            is RunEvent.Preparing -> {
+                                log.line(event.message)
+                                report(profileId, Progress(null, event.message))
+                                setForeground(foregroundInfo(profile.name, event.message, null))
                             }
-                            event.secondsRemaining?.takeIf { it > 0 }?.let {
-                                if (isNotEmpty()) append(" · ")
-                                append(Formats.duration(it))
-                                append(" left")
+
+                            is RunEvent.Progress -> {
+                                val percent = (event.fraction * 100).toInt()
+                                val text = buildString {
+                                    if (event.filesDone != null && event.totalFiles != null) {
+                                        append("${event.filesDone} / ${event.totalFiles} files")
+                                    }
+                                    if (event.bytesDone != null && event.totalBytes != null) {
+                                        if (isNotEmpty()) append(" · ")
+                                        append(Formats.bytes(event.bytesDone))
+                                        append(" / ")
+                                        append(Formats.bytes(event.totalBytes))
+                                    }
+                                    event.secondsRemaining?.takeIf { it > 0 }?.let {
+                                        if (isNotEmpty()) append(" · ")
+                                        append(Formats.duration(it))
+                                        append(" left")
+                                    }
+                                }.ifEmpty { applicationContext.getString(R.string.status_working) }
+
+                                report(profileId, Progress(event.fraction, text))
+                                setForeground(foregroundInfo(profile.name, text, percent))
                             }
-                        }.ifEmpty { applicationContext.getString(R.string.status_working) }
 
-                        report(profileId, Progress(event.fraction, text))
-                        setForeground(foregroundInfo(profile.name, text, percent))
-                    }
+                            is RunEvent.Warning -> {
+                                warnings++
+                                log.line("warning: ${event.message}")
+                            }
 
-                    is RunEvent.Warning -> {
-                        warnings++
-                        log.line("warning: ${event.message}")
-                    }
+                            is RunEvent.Finished -> {
+                                val warningCount = maxOf(warnings, event.warnings)
+                                log.line(
+                                    "done: snapshot ${event.snapshotId ?: "?"}, " +
+                                        "${event.filesNew} new files, ${Formats.bytes(event.bytesAdded)} added" +
+                                        if (warningCount > 0) ", $warningCount warnings" else ""
+                                )
+                                Notifications.result(
+                                    applicationContext,
+                                    applicationContext.getString(R.string.notification_done, profile.name),
+                                    buildString {
+                                        append(Formats.bytes(event.bytesAdded))
+                                        append(" added")
+                                        event.snapshotId?.let { append(" · snapshot ${it.take(8)}") }
+                                        if (warningCount > 0) {
+                                            append("\n$warningCount warnings; see the run log")
+                                        }
+                                    },
+                                    failed = false,
+                                )
+                                Runs.changed(profile.destinationId)
+                                outcome = Result.success()
+                            }
 
-                    is RunEvent.Finished -> {
-                        val warningCount = maxOf(warnings, event.warnings)
-                        log.line(
-                            "done: snapshot ${event.snapshotId ?: "?"}, " +
-                                "${event.filesNew} new files, ${Formats.bytes(event.bytesAdded)} added" +
-                                if (warningCount > 0) ", $warningCount warnings" else ""
-                        )
-                        Notifications.result(
-                            applicationContext,
-                            applicationContext.getString(R.string.notification_done, profile.name),
-                            buildString {
-                                append(Formats.bytes(event.bytesAdded))
-                                append(" added")
-                                event.snapshotId?.let { append(" · snapshot ${it.take(8)}") }
-                                if (warningCount > 0) {
-                                    append("\n$warningCount warnings; see the run log")
-                                }
-                            },
-                            failed = false,
-                        )
-                        Runs.changed(profile.destinationId)
-                        outcome = Result.success()
+                            is RunEvent.Failed -> {
+                                log.line("failed: ${event.message}")
+                                Notifications.result(
+                                    applicationContext,
+                                    applicationContext.getString(R.string.notification_failed, profile.name),
+                                    event.message,
+                                    failed = true,
+                                )
+                                outcome = if (manual) Result.failure() else Result.retry()
+                            }
+                        }
                     }
-
-                    is RunEvent.Failed -> {
-                        log.line("failed: ${event.message}")
-                        Notifications.result(
-                            applicationContext,
-                            applicationContext.getString(R.string.notification_failed, profile.name),
-                            event.message,
-                            failed = true,
-                        )
-                        outcome = if (manual) Result.failure() else Result.retry()
-                    }
+                } finally {
+                    progress.update { it - profileId }
                 }
             }
+        } catch (e: CancellationException) {
+            log.line("cancelled")
+            throw e
+        } catch (e: Exception) {
+            val message = e.message ?: "Backup failed"
+            log.line("failed: $message")
+            Notifications.result(applicationContext, profile.name, message, failed = true)
+            outcome = if (manual) Result.failure() else Result.retry()
         } finally {
-            progress.update { it - profileId }
+            RunLog.prune(config.settings.logRetention)
         }
-
-        RunLog.prune(config.settings.logRetention)
-        log.line("log kept at ${log.path()}")
         return outcome
     }
 
@@ -184,10 +199,10 @@ class BackupWorker(
     }
 
     private fun report(profileId: String, value: Progress) {
-        progress.update { it + (profileId to value) }
+        progress.update { it + (profileId to value.copy(manual = inputData.getBoolean(KEY_MANUAL, false))) }
     }
 
-    data class Progress(val fraction: Float?, val text: String)
+    data class Progress(val fraction: Float?, val text: String, val manual: Boolean = false)
 
     companion object {
         const val KEY_PROFILE_ID: String = "profile"

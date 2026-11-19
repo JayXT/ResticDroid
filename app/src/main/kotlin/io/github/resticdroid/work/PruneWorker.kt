@@ -11,12 +11,14 @@ import io.github.resticdroid.R
 import io.github.resticdroid.config.ConfigPaths
 import io.github.resticdroid.config.ConfigStore
 import io.github.resticdroid.engine.ProviderError
+import io.github.resticdroid.engine.RepositoryWork
 import io.github.resticdroid.engine.Repositories
 import io.github.resticdroid.restic.Restic
 import io.github.resticdroid.restic.ResticCommand
 import io.github.resticdroid.restic.lockCleanupWarning
 import io.github.resticdroid.secret.SecretStore
 import io.github.resticdroid.util.Redact
+import kotlinx.coroutines.CancellationException
 
 /**
  * `restic prune`, on demand.
@@ -55,42 +57,55 @@ class PruneWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         }
 
         val log = RunLog.open("prune-$destinationId")
-        val promoted = startForeground(applicationContext, log) {
-            setForeground(foregroundInfo(destination.name))
-        }
-        if (!promoted) return Result.failure()
-        log.line("pruning '${destination.name}'")
+        return try {
+            val promoted = startForeground(applicationContext, log) {
+                setForeground(foregroundInfo(destination.name))
+            }
+            if (!promoted) return Result.failure()
+            log.line("pruning '${destination.name}'")
 
-        val opened = Repositories.openOrFail(
-            destination, SecretStore(applicationContext), ConfigPaths.credentialDir(applicationContext),
-        )
-        val repository = opened.getOrElse {
-            log.line("failed: ${it.message}")
-            Notifications.result(applicationContext, destination.name, it.message ?: "Failed", failed = true)
-            return Result.failure()
-        }
+            RepositoryWork.run {
+                val opened = Repositories.openOrFail(
+                    destination, SecretStore(applicationContext), ConfigPaths.credentialDir(applicationContext),
+                )
+                val repository = opened.getOrElse {
+                    log.line("failed: ${it.message}")
+                    Notifications.result(applicationContext, destination.name, it.message ?: "Failed", failed = true)
+                    return@run Result.failure()
+                }
 
-        val result = Restic.from(applicationContext).execute(repository, ResticCommand.prune())
-        val warning = lockCleanupWarning(result.stderr)?.let {
-            Redact.text(it, repository.env.values + repository.password)
-        }
-        warning?.let { log.line("warning: $it") }
-        RunLog.prune(config.settings.logRetention)
+                val result = Restic.from(applicationContext).execute(repository, ResticCommand.prune())
+                val warning = lockCleanupWarning(result.stderr)?.let {
+                    Redact.text(it, repository.env.values + repository.password)
+                }
+                warning?.let { log.line("warning: $it") }
 
-        Runs.changed(destinationId)
-        return if (result.isSuccess) {
-            log.line("done")
-            Notifications.result(
-                applicationContext, destination.name,
-                warning?.let { "Prune finished with a warning: $it" } ?: "Prune finished",
-                failed = false,
-            )
-            Result.success()
-        } else {
-            val message = ProviderError.explain(destination, result.humanError())
+                Runs.changed(destinationId)
+                if (result.isSuccess) {
+                    log.line("done")
+                    Notifications.result(
+                        applicationContext, destination.name,
+                        warning?.let { "Prune finished with a warning: $it" } ?: "Prune finished",
+                        failed = false,
+                    )
+                    Result.success()
+                } else {
+                    val message = ProviderError.explain(destination, result.humanError())
+                    log.line("failed: $message")
+                    Notifications.result(applicationContext, destination.name, message, failed = true)
+                    Result.failure()
+                }
+            }
+        } catch (e: CancellationException) {
+            log.line("cancelled")
+            throw e
+        } catch (e: Exception) {
+            val message = e.message ?: "Prune failed"
             log.line("failed: $message")
             Notifications.result(applicationContext, destination.name, message, failed = true)
             Result.failure()
+        } finally {
+            RunLog.prune(config.settings.logRetention)
         }
     }
 

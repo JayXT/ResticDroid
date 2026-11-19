@@ -53,3 +53,34 @@ internal suspend fun Flow<ResticEvent>.readFiles(log: (String) -> Unit = {}): Fi
     if (!ResticExit.isSuccess(code)) error(problem ?: ResticExit.describe(code))
     return FileListing(files, truncated, warning)
 }
+
+/** Bound both line count and text size without stopping restic early. */
+internal suspend fun Flow<ResticEvent>.readDiff(): String {
+    val text = StringBuilder()
+    var lines = 0
+    var omitted = 0L
+    var exit: Int? = null
+    var problem: String? = null
+    var warning: String? = null
+    collect { event ->
+        when (event) {
+            is ResticEvent.Output -> {
+                if (omitted == 0L && lines < 2_000 && text.length + event.line.length < 512 * 1024) {
+                    text.appendLine(event.line)
+                    lines++
+                } else omitted++
+            }
+            is ResticEvent.Diagnostic -> {
+                problem = event.line
+                lockCleanupWarning(event.line)?.let { warning = it }
+            }
+            is ResticEvent.Finished -> exit = event.exitCode
+            else -> Unit
+        }
+    }
+    val code = exit ?: error("Comparison ended without an exit status")
+    check(code == ResticExit.OK) { problem ?: ResticExit.describe(code) }
+    if (omitted > 0) text.append("\n… and $omitted more lines.\n")
+    warning?.let { text.append("\nWarning: $it\n") }
+    return text.toString().trim().ifEmpty { "No differences." }
+}

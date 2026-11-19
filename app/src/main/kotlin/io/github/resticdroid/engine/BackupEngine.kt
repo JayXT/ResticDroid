@@ -115,10 +115,11 @@ class BackupEngine(
         }
         selfReferential.forEach { emit(RunEvent.Warning("skipped $it: it is a repository")) }
 
-        val paths = profile.paths
+        val (presentSources, missingSources) = profile.paths
             .filter { it !in selfReferential }
-            .filter { File(it).exists() }
-            .toMutableList()
+            .partition { File(it).exists() }
+        missingSources.forEach { emit(RunEvent.Warning("source missing: $it")) }
+        val paths = presentSources.toMutableList()
         val staging = ConfigPaths.stagingDir(context, profile.id)
         if (profile.includeApps) {
             emit(RunEvent.Preparing("Exporting installed apps"))
@@ -142,7 +143,13 @@ class BackupEngine(
 
         val excludeFiles = profile.excludeFiles.mapNotNull { entry ->
             val file = if (entry.startsWith("/")) File(entry) else File(ConfigPaths.excludesDir(), entry)
-            file.takeIf { it.isFile }?.absolutePath
+            if (!file.exists()) {
+                emit(RunEvent.Warning("exclusion list missing: ${file.absolutePath}"))
+                null
+            } else {
+                check(file.isFile && file.canRead()) { "Cannot read exclusion list: ${file.absolutePath}" }
+                file.absolutePath
+            }
         }
 
         val command = ResticCommand.backup(
@@ -195,8 +202,12 @@ class BackupEngine(
                 is ResticEvent.Finished -> {
                     if (ResticExit.isSuccess(event.exitCode)) {
                         if (!profile.retention.isEmpty()) {
-                            emit(RunEvent.Preparing("Applying retention policy"))
-                            forget(repository, profile)
+                            if (missingSources.isNotEmpty() || event.exitCode == ResticExit.INCOMPLETE_BACKUP) {
+                                emit(RunEvent.Warning("retention skipped: backup has missing or unreadable files"))
+                            } else {
+                                emit(RunEvent.Preparing("Applying retention policy"))
+                                forget(repository, profile)
+                            }
                         }
                         emit(
                             RunEvent.Finished(

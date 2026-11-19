@@ -5,12 +5,10 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.ProducerScope
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
-import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -19,7 +17,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
-import java.util.concurrent.TimeUnit
 
 public class Restic internal constructor(
     private val binary: File,
@@ -36,38 +33,26 @@ public class Restic internal constructor(
     public fun isAvailable(): Boolean = binary.canExecute()
 
     public fun stream(repository: ResticRepository?, command: ResticCommand): Flow<ResticEvent> =
-        callbackFlow {
-            val process = start(repository, command)
-
-            val pumps = listOf(
-                launch(Dispatchers.IO) {
-                    pump(process.inputStream) { line ->
-                        if (command.json) {
-                            ResticJson.parseLine(line)
-                        } else {
-                            line.takeIf { it.isNotBlank() }?.let(ResticEvent::Output)
+        channelFlow {
+            withProcess({ start(repository, command) }) { process ->
+                val pumps = listOf(
+                    launch(Dispatchers.IO) {
+                        pump(process.inputStream) { line ->
+                            if (command.json) ResticJson.parseLine(line)
+                            else line.takeIf { it.isNotBlank() }?.let(ResticEvent::Output)
                         }
-                    }
-                },
-                launch(Dispatchers.IO) {
-                    pump(process.errorStream) { line ->
-                        lockCleanupWarning(line)?.let {
-                            Log.w("ResticDroid", "restic ${command.args.first()}: lock cleanup failed")
+                    },
+                    launch(Dispatchers.IO) {
+                        pump(process.errorStream) { line ->
+                            line.takeIf { it.isNotBlank() }?.let(ResticEvent::Diagnostic)
                         }
-                        line.takeIf { it.isNotBlank() }?.let(ResticEvent::Diagnostic)
-                    }
-                },
-            )
-
-            launch(Dispatchers.IO) {
+                    },
+                )
                 val code = runInterruptible { process.waitFor() }
                 Log.i("ResticDroid", "restic ${command.args.first()} exited: $process; code=$code")
                 pumps.forEach { it.join() }
                 send(ResticEvent.Finished(code))
-                close()
             }
-
-            awaitClose { terminate(process) }
         }
             .buffer(BUFFERED_EVENTS)
             .flowOn(Dispatchers.IO)
@@ -76,21 +61,12 @@ public class Restic internal constructor(
         repository: ResticRepository?,
         command: ResticCommand,
     ): ResticResult = withContext(Dispatchers.IO) {
-        val process = start(repository, command)
-        try {
-            coroutineScope {
-                val out = async { process.inputStream.bufferedReader().use { it.readText() } }
-                val err = async { process.errorStream.bufferedReader().use { it.readText() } }
-                val code = runInterruptible { process.waitFor() }
-                Log.i("ResticDroid", "restic ${command.args.first()} exited: $process; code=$code")
-                ResticResult(code, out.await(), err.await()).also {
-                    if (lockCleanupWarning(it.stderr) != null) {
-                        Log.w("ResticDroid", "restic ${command.args.first()}: lock cleanup failed")
-                    }
-                }
-            }
-        } finally {
-            terminate(process)
+        withProcess({ start(repository, command) }) { process ->
+            val out = async { process.inputStream.bufferedReader().use { it.readBounded() } }
+            val err = async { process.errorStream.bufferedReader().use { it.readBounded() } }
+            val code = runInterruptible { process.waitFor() }
+            Log.i("ResticDroid", "restic ${command.args.first()} exited: $process; code=$code")
+            ResticResult(code, out.await().complete(), err.await().complete())
         }
     }
 
@@ -147,6 +123,7 @@ public class Restic internal constructor(
 
         val argv = buildList {
             add(binary.absolutePath)
+            add("--cleanup-cache")
             // The repository goes in the environment, never in argv: for a REST
             // repository the URI carries the user's password, and argv is world
             // readable through /proc.
@@ -183,18 +160,9 @@ public class Restic internal constructor(
         }
     }
 
-    private fun terminate(process: Process) {
-        if (!process.isAlive) return
-        process.destroy()
-        if (!process.waitFor(GRACE_SECONDS, TimeUnit.SECONDS)) {
-            process.destroyForcibly()
-        }
-    }
-
     public companion object {
         private const val BUFFERED_EVENTS = 256
         private const val MAX_LINE_CHARS = 64 * 1024
-        private const val GRACE_SECONDS = 10L
 
         @JvmStatic
         public fun from(context: Context): Restic {

@@ -2,6 +2,8 @@ package io.github.resticdroid
 
 import android.app.Application
 import androidx.work.Configuration
+import io.github.resticdroid.config.ConfigPaths
+import io.github.resticdroid.engine.RepositoryWork
 import io.github.resticdroid.config.ConfigStore
 import io.github.resticdroid.restic.Restic
 import io.github.resticdroid.secret.SecretStore
@@ -33,6 +35,9 @@ class ResticDroidApp : Application(), Configuration.Provider {
         super.onCreate()
 
         Notifications.ensureChannels(this)
+        scope.launch(Dispatchers.IO) {
+            RepositoryWork.run { ConfigPaths.stagingDir(this@ResticDroidApp).deleteRecursively() }
+        }
 
         configStore.startWatching(scope)
         configStore.state

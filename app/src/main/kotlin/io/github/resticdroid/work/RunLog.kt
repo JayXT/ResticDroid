@@ -15,7 +15,7 @@ class RunLog private constructor(private val file: File) {
     fun line(text: String) {
         if (written > MAX_LINES) return
         written++
-        val out = if (written > MAX_LINES) "… further lines omitted" else Redact.text(text)
+        val out = if (written > MAX_LINES) "… further lines omitted" else Redact.text(text).take(4_096)
         runCatching { file.appendText("${timestamp()} $out\n") }
     }
 

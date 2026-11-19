@@ -96,6 +96,7 @@ fun ProfilesScreen(
                     destinationName = config.destination(profile.destinationId)?.name,
                     nextRun = nextRuns[profile.id],
                     running = progress[profile.id] != null,
+                    canStop = progress[profile.id]?.manual == true,
                     progressFraction = progress[profile.id]?.fraction,
                     progressText = progress[profile.id]?.text,
                     onOpen = { navigator.go(Screen.EditProfile(profile.id)) },
@@ -124,6 +125,7 @@ private fun ProfileCard(
     destinationName: String?,
     nextRun: Long?,
     running: Boolean,
+    canStop: Boolean,
     progressFraction: Float?,
     progressText: String?,
     onOpen: () -> Unit,
@@ -162,11 +164,11 @@ private fun ProfileCard(
                         )
                     }
                 }
-                if (running) {
+                if (running && canStop) {
                     IconButton(onClick = onStop) {
                         Icon(Glyphs.Stop, contentDescription = "Stop")
                     }
-                } else {
+                } else if (!running) {
                     IconButton(onClick = onRun, enabled = problems.isEmpty()) {
                         Icon(Icons.Default.PlayArrow, contentDescription = "Back up now")
                     }
