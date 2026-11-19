@@ -55,6 +55,7 @@ import io.github.resticdroid.engine.ExclusionPolicy
 import io.github.resticdroid.restic.ResticBackend
 import io.github.resticdroid.restic.RetentionPolicy
 import io.github.resticdroid.ui.AppViewModel
+import io.github.resticdroid.ui.Glyphs
 import io.github.resticdroid.ui.Navigator
 import io.github.resticdroid.ui.components.BackButton
 import io.github.resticdroid.ui.components.ConfirmDialog
@@ -152,11 +153,15 @@ fun ProfileEditorScreen(
                 value = pathsText,
                 onValueChange = { pathsText = it },
                 label = { Text("Files or folders, one per line") },
+                trailingIcon = {
+                    IconButton(onClick = { pickingExclusions = false }) {
+                        Icon(Glyphs.Folder, contentDescription = "Browse files or folders")
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
             )
             Hint("Absolute paths. /storage/emulated/0 is internal shared storage.")
-            TextButton(onClick = { pickingExclusions = false }) { Text("Browse") }
             if (includeApps && currentPaths().isEmpty()) {
                 Hint("APKs are gathered when the backup runs, so no path is listed here.")
             }
@@ -182,11 +187,15 @@ fun ProfileEditorScreen(
                 value = excludeFilesText,
                 onValueChange = { excludeFilesText = it },
                 label = { Text("Exclude files, one per line (optional)") },
+                trailingIcon = {
+                    IconButton(onClick = { pickingExclusions = true }) {
+                        Icon(Glyphs.Folder, contentDescription = "Browse exclusion files")
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 1,
             )
             Hint("A bare name is looked up in ResticDroid/exclude.d; an absolute path is used as written.")
-            TextButton(onClick = { pickingExclusions = true }) { Text("Browse") }
 
             OutlinedTextField(
                 value = tagsText,

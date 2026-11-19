@@ -11,19 +11,29 @@ import java.util.concurrent.TimeUnit
 internal suspend fun <T> withProcess(
     start: () -> Process,
     block: suspend CoroutineScope.(Process) -> T,
-): T = coroutineScope {
-    currentCoroutineContext().ensureActive()
-    val process = start()
-    try {
-        block(process)
-    } finally {
-        if (process.isAlive) {
-            process.destroy()
-            if (!process.waitFor(10, TimeUnit.SECONDS)) {
-                process.destroyForcibly()
-                process.waitFor()
+): T {
+    val caller = currentCoroutineContext()
+    caller.ensureActive()
+    return try {
+        coroutineScope {
+            val process = start()
+            try {
+                block(process)
+            } finally {
+                if (process.isAlive) {
+                    process.destroy()
+                    if (!process.waitFor(10, TimeUnit.SECONDS)) {
+                        process.destroyForcibly()
+                        process.waitFor()
+                    }
+                }
             }
         }
+    } catch (e: Exception) {
+        // A pipe reader can throw IOException while cancellation closes it.
+        // Preserve the caller's cancellation rather than reporting a read failure.
+        caller.ensureActive()
+        throw e
     }
 }
 

@@ -15,7 +15,6 @@ import io.github.resticdroid.engine.RunEvent
 import io.github.resticdroid.restic.Restic
 import io.github.resticdroid.secret.SecretStore
 import io.github.resticdroid.util.Formats
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 
@@ -167,10 +166,8 @@ class BackupWorker(
                     progress.update { it - profileId }
                 }
             }
-        } catch (e: CancellationException) {
-            log.line("cancelled")
-            throw e
         } catch (e: Exception) {
+            rethrowIfStopped(log, "Backup", profile.name, e)
             val message = e.message ?: "Backup failed"
             log.line("failed: $message")
             Notifications.result(applicationContext, profile.name, message, failed = true)

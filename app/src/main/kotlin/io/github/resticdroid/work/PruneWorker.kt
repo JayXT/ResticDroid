@@ -18,7 +18,6 @@ import io.github.resticdroid.restic.ResticCommand
 import io.github.resticdroid.restic.lockCleanupWarning
 import io.github.resticdroid.secret.SecretStore
 import io.github.resticdroid.util.Redact
-import kotlinx.coroutines.CancellationException
 
 /**
  * `restic prune`, on demand.
@@ -96,10 +95,8 @@ class PruneWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                     Result.failure()
                 }
             }
-        } catch (e: CancellationException) {
-            log.line("cancelled")
-            throw e
         } catch (e: Exception) {
+            rethrowIfStopped(log, "Prune", destination.name, e)
             val message = e.message ?: "Prune failed"
             log.line("failed: $message")
             Notifications.result(applicationContext, destination.name, message, failed = true)
