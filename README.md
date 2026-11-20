@@ -2,7 +2,7 @@
 
 Scheduled, encrypted backups for Android, built on [restic](https://restic.net).
 
-*Developed by Claude Opus 5 (cowork mode).*
+*Developed by Claude Opus 5 (cowork mode), ChatGPT 6 Astra.*
 
 restic has no Android port. ResticDroid cross-compiles restic, ships it inside
 the app, and drives it as a child process. Snapshots it writes are ordinary
