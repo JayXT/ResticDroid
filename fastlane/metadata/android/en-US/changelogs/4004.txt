@@ -1,0 +1,3 @@
+* Fixes to repo unlock, file listing and snapshot forgetting logic.
+* Minimal file picker for what to backup and exclusion files.
+* Improved scheduler behavior and backup cancellation.
