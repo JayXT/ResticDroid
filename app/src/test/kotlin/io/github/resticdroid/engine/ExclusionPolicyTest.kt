@@ -290,10 +290,10 @@ class CredentialDeliveryTest {
     @org.junit.Test
     fun `only backends that can work on Android are offered`() {
         val ids = io.github.resticdroid.restic.ResticBackend.entries.map { it.id }
-        org.junit.Assert.assertFalse(ids.contains("sftp"))
+        org.junit.Assert.assertTrue(ids.contains("sftp"))
         org.junit.Assert.assertFalse(ids.contains("rclone"))
         org.junit.Assert.assertEquals(
-            listOf("azure", "b2", "gs", "local", "rest", "s3", "swift"),
+            listOf("azure", "b2", "gs", "local", "rest", "s3", "sftp", "swift"),
             ids.sorted(),
         )
     }

@@ -24,12 +24,12 @@ the phone is not woken up to discover it cannot run.
 <b>Repositories</b>
 
 Backblaze B2, S3 and S3-compatible services, Azure Blob Storage, Google Cloud
-Storage, OpenStack Swift, a restic REST server, or a local folder. Create a new
+Storage, OpenStack Swift, SFTP, a restic REST server, or a local folder. Create a new
 repository from the app, or point it at one that already exists.
 
-SFTP and rclone are not offered: restic implements those by running the "ssh"
-and "rclone" programs, which Android does not have. Use a REST server or an
-S3-compatible gateway instead.
+For SFTP, generate a key for the destination and authorize its public key on the
+server. Verify the server fingerprint once during setup. Scheduled backups
+check the saved fingerprint each time they connect.
 
 <b>Security</b>
 

@@ -16,7 +16,9 @@
 #
 #    versionCode is derived from versionName as major*10000 + minor*100 + patch,
 #    so 0.1.0 is 100, 0.2.0 is 200, 1.0.0 is 10000, 1.2.3 is 10203. Nothing
-#    else needs editing: :app:checkVersion asserts the two agree.
+#    else needs editing for stable releases. For a beta, subtract one from the
+#    stable base code (e.g. 499 for 0.5.0-beta.1, then 500 for 0.5.0).
+#    In either case, :app:checkVersion asserts the two agree.
 #
 #    Those are not the numbers that reach a phone. One APK is published per
 #    ABI, each carrying versionCode * 10 + an offset (armeabi-v7a 1,

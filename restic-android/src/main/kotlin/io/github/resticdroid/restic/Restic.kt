@@ -30,6 +30,27 @@ public class Restic internal constructor(
 
     public fun bundledLicence(): String = licence
 
+    private val sshHelper: File get() = File(binary.parentFile, "libsftpssh.so")
+
+    public suspend fun generateSshIdentity(): String = sshSetup("generate", emptyMap())
+
+    public suspend fun probeSshHost(endpoint: SftpLocation): String = sshSetup(
+        "probe", mapOf("RD_SSH_ADDRESS" to endpoint.address, "RD_SSH_USER" to endpoint.user),
+    )
+
+    private suspend fun sshSetup(operation: String, env: Map<String, String>): String =
+        withContext(Dispatchers.IO) {
+            val builder = ProcessBuilder(sshHelper.absolutePath, operation)
+            builder.environment().apply { clear(); putAll(env) }
+            withProcess({ builder.start() }) { process ->
+                val out = async { process.inputStream.bufferedReader().use { it.readBounded(4096) } }
+                val err = async { process.errorStream.bufferedReader().use { it.readBounded(4096) } }
+                val status = runInterruptible { process.waitFor() }
+                check(status == 0) { err.await().complete().trim().ifEmpty { "SSH setup failed." } }
+                out.await().complete().trim()
+            }
+        }
+
     public fun isAvailable(): Boolean = binary.canExecute()
 
     public fun stream(repository: ResticRepository?, command: ResticCommand): Flow<ResticEvent> =
@@ -128,6 +149,10 @@ public class Restic internal constructor(
             // repository the URI carries the user's password, and argv is world
             // readable through /proc.
             if (repository != null) addAll(repository.options)
+            if (repository?.uri?.startsWith("sftp:") == true) {
+                add("-o")
+                add("sftp.command=" + sshHelper.absolutePath)
+            }
             addAll(command.args)
         }
 
@@ -212,6 +237,8 @@ public data class ResticResult(
             ?.ifEmpty { null }
 
     public fun humanError(): String {
+        stderr.lineSequence().firstOrNull { it.startsWith("subprocess ") && "/libsftpssh.so: " in it }
+            ?.let { return it.substringAfter("/libsftpssh.so: ") }
         exitError()?.let { return it }
 
         val fromStderr = stderr.lineSequence()

@@ -17,6 +17,7 @@ import io.github.resticdroid.engine.ProviderError
 import io.github.resticdroid.engine.RepositoryWork
 import io.github.resticdroid.engine.Repositories
 import io.github.resticdroid.engine.RestoreReport
+import io.github.resticdroid.restic.SftpLocation
 import io.github.resticdroid.restic.ResticCommand
 import io.github.resticdroid.restic.ResticExit
 import io.github.resticdroid.restic.ResticSnapshot
@@ -249,6 +250,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             app.configStore.deleteDestination(id)
         }
     }
+
+    suspend fun generateSshIdentity(): String = app.restic.generateSshIdentity()
+
+    suspend fun probeSshHost(endpoint: SftpLocation): String =
+        app.restic.probeSshHost(endpoint)
 
     fun hasPassword(destinationId: String): Boolean =
         app.secrets.has(SecretStore.passwordAlias(destinationId))

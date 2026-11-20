@@ -4,6 +4,8 @@ import io.github.resticdroid.config.Destination
 import io.github.resticdroid.restic.Delivery
 import io.github.resticdroid.restic.ResticRepository
 import io.github.resticdroid.secret.SecretStore
+import io.github.resticdroid.restic.ResticBackend
+import io.github.resticdroid.restic.SftpLocation
 import java.io.File
 
 object Repositories {
@@ -107,6 +109,13 @@ object Repositories {
                     credentialDir, destination.id, field.key, value,
                 )
             }
+        }
+
+        if (destination.backend == ResticBackend.SFTP) {
+            val endpoint = SftpLocation.parse(destination.uri)
+            require(endpoint.accepts(env[SftpLocation.PIN])) { "Verify the SSH host key for this server." }
+            env["RD_SSH_ADDRESS"] = endpoint.address
+            env["RD_SSH_USER"] = endpoint.user
         }
 
         return ResticRepository(

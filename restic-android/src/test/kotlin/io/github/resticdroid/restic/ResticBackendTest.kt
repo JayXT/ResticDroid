@@ -34,7 +34,7 @@ class ResticBackendTest {
     @Test
     fun `no backend is offered that needs a binary Android does not have`() {
         val ids = ResticBackend.entries.map { it.id }
-        assertTrue(!ids.contains("sftp"))
+        assertTrue(ids.contains("sftp"))
         assertTrue(!ids.contains("rclone"))
     }
 

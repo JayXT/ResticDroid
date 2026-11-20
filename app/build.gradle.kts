@@ -21,8 +21,8 @@ android {
         // and a derived value would be invisible to it. They are the only copy -
         // a second one elsewhere in this file would drift, and :app:checkVersion
         // would happily pass while the APK carried the old number.
-        versionCode = 400
-        versionName = "0.4.0"
+        versionCode = 499
+        versionName = "0.5.0-beta.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -97,7 +97,7 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
-            keepDebugSymbols += "**/librestic.so"
+            keepDebugSymbols += setOf("**/librestic.so", "**/libsftpssh.so")
         }
         resources {
             excludes += setOf(
@@ -249,13 +249,13 @@ tasks.register("checkVersion") {
     val name = baseVersionName
     val code = baseVersionCode
     doLast {
-        // A prerelease suffix is part of the name a user reads, not of the
-        // number Android compares, so it is stripped before the arithmetic.
+        // Reserve the preceding code for a beta so its stable release updates it.
         val parts = name.substringBefore('-').split(".")
         require(parts.size == 3 && parts.all { it.isNotEmpty() && it.all(Char::isDigit) }) {
             "versionName '$name' is not major.minor.patch with an optional -suffix"
         }
-        val expected = parts[0].toInt() * 10000 + parts[1].toInt() * 100 + parts[2].toInt()
+        val stableCode = parts[0].toInt() * 10000 + parts[1].toInt() * 100 + parts[2].toInt()
+        val expected = if ('-' in name) stableCode - 1 else stableCode
         if (expected != code) {
             throw GradleException(
                 "versionName '$name' implies versionCode $expected, but versionCode is $code. " +

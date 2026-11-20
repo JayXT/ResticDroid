@@ -3,9 +3,6 @@ package io.github.resticdroid.restic
 private const val REST_USER_KEY = "rest-user"
 private const val REST_PASSWORD_KEY = "rest-password"
 
-// No sftp or rclone: restic implements them by spawning ssh and rclone,
-// which stock Android does not have and cannot be given - restic is run
-// with PATH=/system/bin:/system/xbin and nothing else.
 public enum class ResticBackend(
     public val id: String,
     public val displayName: String,
@@ -22,6 +19,17 @@ public enum class ResticBackend(
             CredentialField("B2_ACCOUNT_KEY", "Application key", secret = true),
         ),
         locationHint = "bucket-name:path/on/bucket",
+    ),
+
+    SFTP(
+        id = "sftp",
+        displayName = "SFTP",
+        scheme = "sftp:",
+        credentials = listOf(
+            CredentialField(SftpLocation.IDENTITY, "SSH identity", secret = true),
+            CredentialField(SftpLocation.PIN, "Approved SSH host key", secret = false),
+        ),
+        locationHint = "//user@host:22/path",
     ),
 
     LOCAL(

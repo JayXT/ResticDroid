@@ -47,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.resticdroid.config.ConfigPaths
 import io.github.resticdroid.config.Destination
 import io.github.resticdroid.config.OptionPolicy
+import io.github.resticdroid.restic.SftpLocation
 import io.github.resticdroid.restic.ResticBackend
 import io.github.resticdroid.ui.AppViewModel
 import io.github.resticdroid.ui.Glyphs
@@ -91,6 +92,7 @@ fun DestinationEditorScreen(
     var name by remember(destinationId) { mutableStateOf(existing?.name ?: "") }
     var backend by remember(destinationId) { mutableStateOf(existing?.backend ?: ResticBackend.B2) }
     var location by remember(destinationId) { mutableStateOf(existing?.location ?: "") }
+    var sshFields by remember(destinationId) { mutableStateOf(SftpFields.from(existing?.uri)) }
     var password by remember(destinationId) { mutableStateOf("") }
     var showPassword by remember(destinationId) { mutableStateOf(false) }
     var mode by remember(destinationId) { mutableStateOf(if (creating) Mode.CreateNew else Mode.UseExisting) }
@@ -98,7 +100,7 @@ fun DestinationEditorScreen(
     var outcome by remember(destinationId) { mutableStateOf<String?>(null) }
     var confirmDelete by remember(destinationId) { mutableStateOf(false) }
 
-    val credentials = remember { mutableStateMapOf<String, String>() }
+    val credentials = remember(destinationId) { mutableStateMapOf<String, String>() }
 
     // Prefill from the keystore, but never over something already typed. The
     // configuration is loaded from disk asynchronously, so opening a saved
@@ -115,6 +117,7 @@ fun DestinationEditorScreen(
         }
     }
 
+    val sshEndpoint = remember(sshFields) { sshFields.endpoint() }
     fun draft(): Destination = Destination(
         id = existing?.id ?: ConfigPaths.uniqueId(
             ConfigPaths.destinationsDir(),
@@ -123,13 +126,18 @@ fun DestinationEditorScreen(
         ),
         name = name.ifBlank { backend.displayName },
         backend = backend,
-        location = location.trim(),
+        location = if (backend == ResticBackend.SFTP) {
+            requireNotNull(sshEndpoint).uri().removePrefix("sftp:")
+        } else location.trim(),
         settings = existing?.settings.orEmpty(),
         options = existing?.options.orEmpty(),
         unknown = existing?.unknown.orEmpty(),
     )
 
-    val ready = location.isNotBlank() &&
+    val validLocation = if (backend == ResticBackend.SFTP) {
+        sshEndpoint?.accepts(credentials[SftpLocation.PIN]) == true
+    } else location.isNotBlank()
+    val ready = validLocation &&
         (password.isNotBlank() || (existing != null && model.hasPassword(existing.id))) &&
         backend.credentials.filterNot { it.optional }.all { credentials[it.key]?.isNotBlank() == true }
 
@@ -172,21 +180,25 @@ fun DestinationEditorScreen(
             Picker("Type", ResticBackend.entries.map { it to it.displayName }, backend) { backend = it }
 
             Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = location,
-                onValueChange = { location = it },
-                label = { Text("Location") },
-                singleLine = true,
-                prefix = if (backend.scheme.isNotEmpty()) {
-                    { Text(backend.scheme) }
-                } else {
-                    null
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Hint(backend.locationHint)
+            if (backend == ResticBackend.SFTP) {
+                SftpEditor(sshFields, { sshFields = it }, credentials, model)
+            } else {
+                OutlinedTextField(
+                    value = location,
+                    onValueChange = { location = it },
+                    label = { Text("Location") },
+                    singleLine = true,
+                    prefix = if (backend.scheme.isNotEmpty()) {
+                        { Text(backend.scheme) }
+                    } else {
+                        null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Hint(backend.locationHint)
+            }
 
-            if (backend.credentials.isNotEmpty()) {
+            if (backend != ResticBackend.SFTP && backend.credentials.isNotEmpty()) {
                 SectionHeader("Credentials")
                 Hint("Stored in the Android keystore, not in the configuration files.")
                 backend.credentials.forEach { field ->
@@ -252,12 +264,14 @@ fun DestinationEditorScreen(
             Spacer(Modifier.height(12.dp))
             OutlinedButton(
                 onClick = {
+                    val destination = draft()
+                    val values = credentials.toMap()
                     busy = true
                     outcome = null
                     scope.launch {
                         val result = when (mode) {
-                            Mode.CreateNew -> model.createRepository(draft(), password, credentials.toMap())
-                            Mode.UseExisting -> model.testConnection(draft(), password, credentials.toMap())
+                            Mode.CreateNew -> model.createRepository(destination, password, values)
+                            Mode.UseExisting -> model.testConnection(destination, password, values)
                         }
                         outcome = result.fold({ it }, { it.message ?: "Failed" })
                         busy = false
@@ -292,7 +306,7 @@ fun DestinationEditorScreen(
                     model.saveDestination(draft(), password.takeIf { it.isNotBlank() }, credentials.toMap())
                     navigator.back()
                 },
-                enabled = ready,
+                enabled = ready && !busy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text("Save")

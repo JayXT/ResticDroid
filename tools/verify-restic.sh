@@ -16,10 +16,11 @@ fi
 
 check() {
     abi=$1; expect=$2
-    file=$JNI/$abi/librestic.so
+    name=$3; minimum=$4
+    file=$JNI/$abi/$name
 
     if [ ! -f "$file" ]; then
-        echo "MISSING  $abi/librestic.so"
+        echo "MISSING  $abi/$name"
         status=1
         return
     fi
@@ -40,19 +41,25 @@ check() {
         *) fail="$fail not a PIE (type=$type);" ;;
     esac
     [ "$needed" -ge 1 ] || fail="$fail not linked against bionic libc - DNS will not work;"
-    [ "$size" -gt 5000000 ] || fail="$fail suspiciously small ($size bytes);"
+    [ "$size" -gt "$minimum" ] || fail="$fail suspiciously small ($size bytes);"
 
     if [ -n "$fail" ]; then
         echo "BAD      $abi:$fail"
         status=1
     else
-        echo "ok       $abi  $(printf '%s' "$machine")  $((size / 1048576)) MiB"
+        echo "ok       $abi/$name  $(printf '%s' "$machine")  $((size / 1048576)) MiB"
     fi
 }
 
-check arm64-v8a   AArch64
-check armeabi-v7a ARM
-check x86_64      X86-64
+for abi in arm64-v8a armeabi-v7a x86_64; do
+    case $abi in
+        arm64-v8a) machine=AArch64 ;;
+        armeabi-v7a) machine=ARM ;;
+        x86_64) machine=X86-64 ;;
+    esac
+    check "$abi" "$machine" librestic.so 5000000
+    check "$abi" "$machine" libsftpssh.so 0
+done
 
 # The BSD-2 notice ships inside the APK, so the copy the app shows must still
 # be the one the pinned restic carries. A tracked file cannot go missing at

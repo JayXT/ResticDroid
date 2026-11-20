@@ -1,0 +1,1 @@
+Back up to an SFTP server. Generate a key for the destination, copy the public key to the server, and verify its fingerprint. Create or open a restic repository, run a scheduled backup, and restore files. A changed host key stops the connection.

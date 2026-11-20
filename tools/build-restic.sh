@@ -58,6 +58,9 @@ ABIS=${RESTIC_ABIS:-"arm64-v8a armeabi-v7a x86_64"}
 # What the current output would have to have been built from: everything that
 # changes the bytes.
 stamp() {
+    cksum < "$ROOT/tools/sftpssh/main.go"
+    cksum < "$ROOT/tools/build-restic.sh"
+    cat "$ROOT/.ndk-version"
     printf '%s %s %s %s %s\n' \
         "$(cd "$SRC" && git rev-parse HEAD 2>/dev/null || echo no-git)" \
         "$VERSION" "$GO_PIN" "$API" "$ABIS"
@@ -66,7 +69,7 @@ STAMP_FILE="$OUT/.build-stamp"
 
 have_all() {
     for abi in $ABIS; do
-        [ -f "$OUT/$abi/librestic.so" ] || return 1
+        [ -f "$OUT/$abi/libsftpssh.so" ] && [ -f "$OUT/$abi/librestic.so" ] || return 1
     done
     return 0
 }
@@ -101,6 +104,9 @@ build() {
         GOFLAGS=-mod=mod \
         go build -trimpath -buildvcs=false -ldflags "$LDFLAGS" \
             -o "$OUT/$abi/librestic.so" ./cmd/restic )
+    ( cd "$SRC" && env GOOS=android GOARCH="$goarch" GOARM=7 CGO_ENABLED=1 CC="$BIN/$cc" \
+        go build -mod=readonly -trimpath -buildvcs=false -ldflags="-s -w -buildid=" \
+        -o "$OUT/$abi/libsftpssh.so" "$ROOT/tools/sftpssh/main.go" )
 }
 
 for abi in $ABIS; do

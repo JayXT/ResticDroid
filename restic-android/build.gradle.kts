@@ -29,7 +29,7 @@ android {
 
     packaging {
         jniLibs {
-            keepDebugSymbols += "**/librestic.so"
+            keepDebugSymbols += setOf("**/librestic.so", "**/libsftpssh.so")
             useLegacyPackaging = true
         }
     }
@@ -68,6 +68,7 @@ val buildResticBinaries = tasks.register<Exec>("buildResticBinaries") {
     val output = layout.projectDirectory.dir("src/main/jniLibs")
     val version = layout.projectDirectory.file("src/main/res/raw/restic_version.txt")
 
+    inputs.files(script, rootProject.file("tools/sftpssh/main.go"), rootProject.file(".go-version"), rootProject.file(".ndk-version"))
     inputs.dir(source).withPropertyName("resticSource").ignoreEmptyDirectories()
     outputs.dir(output).withPropertyName("jniLibs")
     // Declared so that losing it alone marks the task out of date. Otherwise

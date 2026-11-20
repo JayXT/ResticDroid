@@ -39,7 +39,7 @@ release key's published SHA-256 with `apksigner verify --print-certs`.
 - **Conditions** — scheduled runs can require charging, an unmetered network,
   an idle device, a battery level, or particular Wi-Fi networks.
 - **Repositories** — Backblaze B2, S3 and compatible services, Azure, Google
-  Cloud Storage, Swift, restic's REST server, and local folders.
+  Cloud Storage, Swift, SFTP, restic's REST server, and local folders.
 - **Snapshots** — browse them, see a snapshot's tags, paths, size and files,
   compare any two, forget one, restore in place or into a folder of its own.
 - **Retention** — `restic forget` after each successful run, on the policy you
@@ -90,7 +90,7 @@ The filename stem is the id profiles refer to.
 | Key | Meaning |
 |---|---|
 | `name` | Shown in the app. |
-| `backend` | `b2`, `local`, `rest`, `s3`, `azure`, `gs`, `swift`. |
+| `backend` | `b2`, `local`, `rest`, `s3`, `azure`, `gs`, `swift`, `sftp`. |
 | `location` | See below. |
 | `setting.<name>` | A non-secret backend environment variable. |
 | `option` | An extra restic flag, before the subcommand. Repeatable. |
@@ -101,6 +101,7 @@ The filename stem is the id profiles refer to.
 | `local` | `/storage/emulated/0/Backups/restic` | — |
 | `rest` | `https://host:8000/path/` | username, password (optional) |
 | `s3` | `s3.amazonaws.com/bucket` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` |
+| `sftp` | `//user@host:22/phone` | generated Ed25519 identity, approved host fingerprint |
 | `azure` | `container:/path` | `AZURE_ACCOUNT_NAME` + key or SAS |
 | `gs` | `bucket:/path` | `GOOGLE_PROJECT_ID`, service-account JSON |
 | `swift` | `container:/path` | `OS_AUTH_URL`, `OS_USERNAME`, `OS_PASSWORD` |
@@ -110,11 +111,28 @@ a path. Google's auth library only resolves a filesystem path, so ResticDroid
 keeps the JSON in the keystore and writes it to an app-private file just before
 each run — the one credential that must exist on disk at all.
 
-`sftp` and `rclone` are absent by necessity: restic implements them by spawning
-`ssh` and `rclone`, which stock Android does not have, and restic is run with
-`PATH=/system/bin:/system/xbin` and nothing else. Run
-[rest-server](https://github.com/restic/rest-server) beside your SSH server and
-use `rest`, or expose the storage with MinIO and use `s3`.
+### Testing SFTP in 0.5.0-beta.1
+
+1. Add an **SFTP** repository. Enter the SSH host, username, port and repository
+   path. A path such as `restic/phone-test` starts in the account's home
+   directory. A leading slash selects an absolute path.
+2. Tap **Generate SSH key**, then **Copy public key**. Authorize that public key
+   on the server. Each destination has its own Ed25519 key. The beta supports
+   generated keys only. The repository password is the usual restic encryption password.
+3. Tap **Verify host key** and compare the SHA-256 fingerprint with a trusted
+   value from the provider or server administrator. Approve it if it matches.
+   Every connection checks the saved fingerprint, including scheduled runs.
+   After a legitimate server key change, verify the new fingerprint and save again.
+4. For a first test, use an empty directory, enter a repository password,
+   tap **Create repository**, then **Save**. To open an existing repository,
+   select **Use existing** and **Test connection** with its existing password.
+5. Back up a small folder, restore a file to a separate directory and compare
+   it with the original. Try a scheduled backup with the editor closed. From
+   a desktop that already has SSH access, open the same repository with restic
+   and check that both snapshots are visible.
+
+The app builds a small SSH transport alongside restic. For rclone-backed
+storage, a separately operated REST gateway remains an option.
 
 ### `profiles.d/<id>.conf`
 
@@ -200,8 +218,8 @@ not public issues.
 
 `./gradlew check assembleRelease`, with submodules checked out. Needs JDK 21,
 the Android SDK with the NDK in `.ndk-version`, the Go version in `.go-version` —
-Gradle cross-compiles restic itself and caches the result until
-`third_party/restic` moves. To avoid installing that toolchain,
+Gradle cross-compiles restic and the SSH helper with the same pinned toolchain.
+The helper imports the SSH library from restic’s existing Go module graph. To avoid installing that toolchain,
 `tools/container-build.sh` does the same in a container.
 
 Release APKs are unsigned. `tools/sign.sh` signs them with a key of your own,
@@ -214,7 +232,7 @@ checked against its source. `tools/verify-restic.sh` asserts each binary is
 position-independent, targets the right machine, and links bionic — the last is
 what makes DNS work at all.
 
-`:restic-android` is a standalone AAR — `librestic.so` for three ABIs plus a
+`:restic-android` is a standalone AAR — `librestic.so` and `libsftpssh.so` for three ABIs plus a
 coroutine API (`Restic.stream`, `Restic.execute`, `ResticCommand`), with no
 dependency on the rest of this project. Consuming apps inherit
 `android:extractNativeLibs="true"` from its manifest and must keep it.

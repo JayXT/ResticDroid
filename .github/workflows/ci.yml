@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, v0.5-beta]
   pull_request:
   workflow_dispatch:
 
@@ -64,7 +64,7 @@ jobs:
             restic-android/src/main/res/raw/restic_version.txt
           # Keyed on the exact restic commit and the script that builds it, so
           # a bump to either invalidates the cache and nothing else does.
-          key: restic-${{ steps.restic.outputs.commit }}-${{ hashFiles('tools/build-restic.sh') }}-${{ hashFiles('.go-version') }}-${{ hashFiles('.ndk-version') }}
+          key: restic-${{ steps.restic.outputs.commit }}-${{ hashFiles('tools/build-restic.sh', 'tools/sftpssh/main.go') }}-${{ hashFiles('.go-version') }}-${{ hashFiles('.ndk-version') }}
 
       - name: Cross-compile restic
         if: steps.restic-cache.outputs.cache-hit != 'true'

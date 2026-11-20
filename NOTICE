@@ -16,6 +16,9 @@ the app under Settings -> About -> restic.
 restic is compiled unmodified from the pinned upstream commit and is executed as
 a separate process; ResticDroid links no restic code into itself.
 
+The SFTP transport (libsftpssh.so) uses Go and golang.org/x/crypto/ssh.
+Their BSD license is included in restic-android/src/main/assets/licenses/go.txt.
+
 assets/badges/get-it-on-fdroid.png is an official F-Droid badge (https://f-droid.org/en/2016/05/29/get-it-on-f-droid-badges.html).
 
 assets/badges/get-it-on-github.svg is derived from the F-Droid badge by Andrew
