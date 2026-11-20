@@ -111,25 +111,20 @@ a path. Google's auth library only resolves a filesystem path, so ResticDroid
 keeps the JSON in the keystore and writes it to an app-private file just before
 each run — the one credential that must exist on disk at all.
 
-### Testing SFTP in 0.5.0-beta.1
+### SFTP setup
 
-1. Add an **SFTP** repository. Enter the SSH host, username, port and repository
-   path. A path such as `restic/phone-test` starts in the account's home
+1. Add an **SFTP** repository and enter the host, port, username and repository
+   path. A path such as `restic/phone` is relative to the SSH account's home
    directory. A leading slash selects an absolute path.
-2. Tap **Generate SSH key**, then **Copy public key**. Authorize that public key
-   on the server. Each destination has its own Ed25519 key. The beta supports
-   generated keys only. The repository password is the usual restic encryption password.
-3. Tap **Verify host key** and compare the SHA-256 fingerprint with a trusted
-   value from the provider or server administrator. Approve it if it matches.
-   Every connection checks the saved fingerprint, including scheduled runs.
-   After a legitimate server key change, verify the new fingerprint and save again.
-4. For a first test, use an empty directory, enter a repository password,
-   tap **Create repository**, then **Save**. To open an existing repository,
-   select **Use existing** and **Test connection** with its existing password.
-5. Back up a small folder, restore a file to a separate directory and compare
-   it with the original. Try a scheduled backup with the editor closed. From
-   a desktop that already has SSH access, open the same repository with restic
-   and check that both snapshots are visible.
+2. Tap **Generate SSH key**, then **Copy public key**. Authorize the public
+   key on the server. Each destination uses its own Ed25519 key.
+3. Tap **Verify host key**. Compare the SHA-256 fingerprint with a trusted
+   value from the server administrator before approving it. Every connection
+   checks the saved fingerprint, including scheduled backups. If the server
+   key changes, verify the new fingerprint and save the destination again.
+4. Enter the restic repository password. For a new repository, choose an
+   empty directory and tap **Create repository**. For an existing one,
+   select **Use existing** and **Test connection**. Tap **Save**.
 
 The app builds a small SSH transport alongside restic. For rclone-backed
 storage, a separately operated REST gateway remains an option.
